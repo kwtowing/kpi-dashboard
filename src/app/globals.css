@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f5f4ef;
+  --surface: #ffffff;
+  --ink: #17181c;
+  --ink-muted: #6b6e76;
+  --line: #e5e2d8;
+  --revenue: #0f6e5d;
+  --revenue-soft: #e6f2ee;
+  --cost: #b5533c;
+  --cost-soft: #f7e9e4;
+  --accent: #2451c7;
+  --accent-soft: #e8edfb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-feature-settings: "tnum" 1;
+}
+
+.font-display {
+  font-family: var(--font-display), serif;
+}
+
+.font-mono-num {
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
