@@ -22,7 +22,7 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Ledgerline — Operational KPI Dashboard",
+  title: "KW Towing Dynamic — Operational KPI Dashboard",
   description: "Financial trajectories and operational cost reporting.",
 };
 

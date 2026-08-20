@@ -8,7 +8,9 @@ const NAV = [
   { href: "/add", label: "Add entry", num: "02" },
   { href: "/upload", label: "Import CSV", num: "03" },
   { href: "/import-caa", label: "Import CAA report", num: "04" },
-  { href: "/sources", label: "Data sources", num: "05" },
+  { href: "/drivers", label: "Drivers & disputes", num: "05" },
+  { href: "/trucks", label: "Trucks (Samsara)", num: "06" },
+  { href: "/sources", label: "Data sources", num: "07" },
 ];
 
 export default function Sidebar() {
@@ -17,8 +19,8 @@ export default function Sidebar() {
   return (
     <aside className="w-60 shrink-0 border-r border-[var(--line)] bg-[var(--surface)] flex flex-col">
       <div className="px-6 pt-8 pb-6">
-        <div className="font-display italic text-2xl leading-none">Ledgerline</div>
-        <div className="text-xs text-[var(--ink-muted)] mt-1 tracking-wide">
+        <div className="font-display italic text-xl leading-tight">KW Towing Dynamic</div>
+        <div className="text-xs text-[var(--ink-muted)] mt-1.5 tracking-wide">
           Operational KPIs
         </div>
       </div>

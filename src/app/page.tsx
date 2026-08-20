@@ -6,6 +6,7 @@ import KpiCard from "@/components/KpiCard";
 import TrajectoryChart from "@/components/TrajectoryChart";
 import CostBreakdown from "@/components/CostBreakdown";
 import SetupBanner from "@/components/SetupBanner";
+import Link from "next/link";
 
 type KpiResponse = {
   period: string;
@@ -20,6 +21,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<KpiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [needsSetup, setNeedsSetup] = useState(false);
+  const [flaggedCount, setFlaggedCount] = useState(0);
 
   const load = useCallback(async (p: string) => {
     setLoading(true);
@@ -47,6 +49,13 @@ export default function DashboardPage() {
     load(period);
   }, [period, load]);
 
+  useEffect(() => {
+    fetch("/api/flagged-calls")
+      .then((r) => r.json())
+      .then((j) => setFlaggedCount(j.count ?? 0))
+      .catch(() => {});
+  }, []);
+
   if (needsSetup) {
     return <SetupBanner onReady={() => load(period)} />;
   }
@@ -62,6 +71,20 @@ export default function DashboardPage() {
         </div>
         <PeriodSelector value={period} onChange={setPeriod} />
       </div>
+
+      {flaggedCount > 0 && (
+        <Link
+          href="/drivers"
+          className="flex items-center gap-3 rounded-2xl border px-5 py-3.5 mb-6 hover:opacity-90 transition-opacity"
+          style={{ background: "var(--cost-soft)", borderColor: "var(--cost)" }}
+        >
+          <span className="text-lg leading-none">⚠</span>
+          <div className="text-sm" style={{ color: "var(--cost)" }}>
+            <span className="font-medium">{flaggedCount} call{flaggedCount === 1 ? "" : "s"} flagged for dispute</span>
+            <span className="text-[var(--ink-muted)]"> — $0 total cost, review on the Drivers &amp; disputes page →</span>
+          </div>
+        </Link>
+      )}
 
       {loading || !data ? (
         <div className="text-sm text-[var(--ink-muted)]">Loading…</div>

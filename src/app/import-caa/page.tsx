@@ -159,7 +159,7 @@ export default function ImportCaaPage() {
     <div className="px-8 py-8 max-w-2xl">
       <h1 className="font-display italic text-3xl mb-1">Import CAA productivity report</h1>
       <p className="text-sm text-[var(--ink-muted)] mb-8">
-        Upload the .xls export directly — Ledgerline already knows this report&apos;s layout, so
+        Upload the .xls export directly — KW Towing Dynamic already knows this report&apos;s layout, so
         there&apos;s nothing to map. Each call&apos;s Total Cost is recorded as revenue.
       </p>
 

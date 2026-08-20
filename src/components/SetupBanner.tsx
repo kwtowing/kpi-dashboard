@@ -24,7 +24,7 @@ export default function SetupBanner({ onReady }: { onReady: () => void }) {
       <h1 className="font-display italic text-3xl mb-3">One step left</h1>
       <p className="text-sm text-[var(--ink-muted)] mb-6">
         Your app is running, but its database hasn&apos;t been set up yet. This creates the
-        tables Ledgerline needs to store your KPI data — it only needs to run once.
+        tables KW Towing Dynamic needs to store your KPI data — it only needs to run once.
       </p>
       <button
         onClick={runSetup}

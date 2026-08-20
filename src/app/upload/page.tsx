@@ -94,7 +94,7 @@ export default function UploadPage() {
         <div className="space-y-6">
           <div className="card p-5">
             <div className="text-sm font-medium mb-3">
-              {rows.length} rows found — match your columns to Ledgerline&apos;s fields
+              {rows.length} rows found — match your columns to KW Towing Dynamic&apos;s fields
             </div>
             <div className="space-y-3">
               {TARGET_FIELDS.map((f) => (
