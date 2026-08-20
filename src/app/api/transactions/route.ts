@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       `INSERT INTO transactions (source_id, entry_date, kind, category, amount, currency, notes)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id`,
-      [sourceId, entry_date, kind, category, amount, currency ?? "USD", notes ?? null]
+      [sourceId, entry_date, kind, category, amount, currency ?? "CAD", notes ?? null]
     );
 
     return NextResponse.json({ ok: true, id: rows[0]?.id });

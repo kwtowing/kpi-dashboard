@@ -8,6 +8,7 @@ type TruckRow = {
   km_paid: number;
   total_cost: number;
   last_used: string;
+  samsara_name: string | null;
 };
 
 type SamsaraVehicle = {
@@ -25,6 +26,7 @@ export default function TrucksPage() {
   const [trucks, setTrucks] = useState<TruckRow[]>([]);
   const [vehicles, setVehicles] = useState<SamsaraVehicle[]>([]);
   const [connected, setConnected] = useState(true);
+  const [samsaraError, setSamsaraError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,12 +37,14 @@ export default function TrucksPage() {
       setTrucks(truckRes.rows ?? []);
       setVehicles(samsaraRes.vehicles ?? []);
       setConnected(samsaraRes.connected);
+      setSamsaraError(samsaraRes.reason === "api_error" ? samsaraRes.error : null);
       setLoading(false);
     });
   }, []);
 
   const matched = trucks.map((t) => {
-    const vehicle = vehicles.find((v) => normalize(v.name) === normalize(t.truck));
+    const targetName = t.samsara_name || t.truck;
+    const vehicle = vehicles.find((v) => normalize(v.name) === normalize(targetName));
     return { ...t, vehicle };
   });
 
@@ -51,7 +55,7 @@ export default function TrucksPage() {
         Usage and revenue from CAA calls, matched with live location and odometer from Samsara.
       </p>
 
-      {!connected && (
+      {!connected && !samsaraError && (
         <div className="card px-5 py-4 mb-6" style={{ borderColor: "var(--accent)" }}>
           <div className="text-sm font-medium mb-1">Samsara isn&apos;t connected yet</div>
           <p className="text-xs text-[var(--ink-muted)] leading-relaxed">
@@ -61,6 +65,15 @@ export default function TrucksPage() {
             location and odometer will appear here automatically — the truck usage numbers
             below already work without it.
           </p>
+        </div>
+      )}
+
+      {samsaraError && (
+        <div className="card px-5 py-4 mb-6" style={{ borderColor: "var(--cost)" }}>
+          <div className="text-sm font-medium mb-1" style={{ color: "var(--cost)" }}>
+            Samsara connection failed
+          </div>
+          <p className="text-xs text-[var(--ink-muted)] leading-relaxed font-mono-num">{samsaraError}</p>
         </div>
       )}
 
@@ -116,9 +129,12 @@ export default function TrucksPage() {
 
       {connected && vehicles.length > 0 && (
         <p className="text-xs text-[var(--ink-muted)] mt-4">
-          Matching is by name — a truck shows as &quot;not linked&quot; if its code in the CAA
-          report (e.g. &quot;WL2&quot;) doesn&apos;t exactly match a vehicle name in Samsara.
-          Rename the vehicle in Samsara to match and it&apos;ll link automatically.
+          Matching uses the Samsara vehicle name set for each truck in{" "}
+          <a href="/administration" className="underline">
+            Administration
+          </a>{" "}
+          — falling back to the truck code itself if none is set. A truck shows as &quot;not
+          linked&quot; until that name matches a vehicle in Samsara exactly.
         </p>
       )}
     </div>

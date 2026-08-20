@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       await query(
         `INSERT INTO transactions (source_id, entry_date, kind, category, amount, currency, notes)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [sourceId, row.entry_date, row.kind, row.category, row.amount, row.currency ?? "USD", row.notes ?? null]
+        [sourceId, row.entry_date, row.kind, row.category, row.amount, row.currency ?? "CAD", row.notes ?? null]
       );
       inserted++;
     }

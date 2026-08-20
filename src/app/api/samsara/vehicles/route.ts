@@ -9,8 +9,11 @@ export async function GET() {
     return NextResponse.json({ connected: true, vehicles });
   } catch (err: any) {
     if (err instanceof SamsaraNotConfigured) {
-      return NextResponse.json({ connected: false, vehicles: [] });
+      return NextResponse.json({ connected: false, reason: "not_configured", vehicles: [] });
     }
-    return NextResponse.json({ connected: false, vehicles: [], error: err.message }, { status: 500 });
+    return NextResponse.json(
+      { connected: false, reason: "api_error", error: err.message, vehicles: [] },
+      { status: 200 }
+    );
   }
 }

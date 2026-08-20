@@ -45,7 +45,7 @@ export default function SourcesPage() {
     <div className="px-8 py-8 max-w-3xl">
       <h1 className="font-display italic text-3xl mb-1">Data sources</h1>
       <p className="text-sm text-[var(--ink-muted)] mb-8">
-        Every entry in KW Towing Dynamic is tagged with where it came from — manual entry, a CSV
+        Every entry in KW Towing Operations Intelligence Portal is tagged with where it came from — manual entry, a CSV
         import, or a connected API. New API connectors (accounting, ERP, CRM tools) plug into
         the same <code className="font-mono-num text-[11px]">transactions</code> table.
       </p>

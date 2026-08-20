@@ -64,9 +64,9 @@ export default function DashboardPage() {
     <div className="px-8 py-8 max-w-6xl">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="font-display italic text-3xl">Overview</h1>
+          <h1 className="font-display italic text-3xl">Executive Dashboard</h1>
           <p className="text-sm text-[var(--ink-muted)] mt-1">
-            Operational KPIs and cost reporting across every connected source.
+            KW Towing operations, revenue and cost — all figures in CAD.
           </p>
         </div>
         <PeriodSelector value={period} onChange={setPeriod} />

@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   kind          TEXT NOT NULL CHECK (kind IN ('revenue', 'cost')),
   category      TEXT NOT NULL,
   amount        NUMERIC(14, 2) NOT NULL,
-  currency      TEXT NOT NULL DEFAULT 'USD',
+  currency      TEXT NOT NULL DEFAULT 'CAD',
   notes         TEXT,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -58,3 +58,53 @@ CREATE TABLE IF NOT EXISTS tow_calls (
 CREATE INDEX IF NOT EXISTS idx_tow_calls_receive_date ON tow_calls (receive_date);
 CREATE INDEX IF NOT EXISTS idx_tow_calls_garage ON tow_calls (garage);
 CREATE INDEX IF NOT EXISTS idx_tow_calls_driver ON tow_calls (driver_id);
+
+-- ============================================================
+-- Phase 1 foundation: Driver Master, Truck Master, Assignments
+-- ============================================================
+-- These are the identity records the rest of the portal (CAA calls,
+-- Samsara telematics, driver cost, alerts) all key off of. A driver is
+-- never permanently glued to one truck — see driver_truck_assignments.
+
+CREATE TABLE IF NOT EXISTS driver_master (
+  id                 SERIAL PRIMARY KEY,
+  driver_id          TEXT NOT NULL UNIQUE, -- matches tow_calls.driver_id (CAA driver ID)
+  driver_name        TEXT,
+  status             TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  email              TEXT,
+  phone              TEXT,
+  samsara_driver_id  TEXT,
+  hourly_rate        NUMERIC(10, 2),
+  compensation_type  TEXT DEFAULT 'hourly' CHECK (compensation_type IN ('hourly', 'salary', 'commission', 'mixed')),
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS truck_master (
+  id                 SERIAL PRIMARY KEY,
+  truck_number       TEXT NOT NULL UNIQUE, -- matches tow_calls.truck (CAA truck code)
+  unit_number        TEXT,
+  plate              TEXT,
+  vin                TEXT,
+  vehicle_class      TEXT CHECK (vehicle_class IN ('light', 'medium', 'heavy', 'flatbed', NULL)),
+  samsara_vehicle_id TEXT,
+  samsara_name       TEXT, -- vehicle name as it appears in Samsara, for matching
+  status             TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Driver <-> Truck assignments over time, so a driver operating multiple
+-- trucks (or a truck having multiple drivers) is represented correctly
+-- instead of assuming a fixed 1:1 pairing.
+CREATE TABLE IF NOT EXISTS driver_truck_assignments (
+  id            SERIAL PRIMARY KEY,
+  driver_id     TEXT NOT NULL REFERENCES driver_master(driver_id) ON DELETE CASCADE,
+  truck_number  TEXT NOT NULL REFERENCES truck_master(truck_number) ON DELETE CASCADE,
+  start_time    TIMESTAMPTZ NOT NULL,
+  end_time      TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_assignments_driver ON driver_truck_assignments (driver_id);
+CREATE INDEX IF NOT EXISTS idx_assignments_truck ON driver_truck_assignments (truck_number);

@@ -91,6 +91,19 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
+      if (r.driver_id) {
+        await query(
+          `INSERT INTO driver_master (driver_id) VALUES ($1) ON CONFLICT (driver_id) DO NOTHING`,
+          [r.driver_id]
+        );
+      }
+      if (r.truck) {
+        await query(
+          `INSERT INTO truck_master (truck_number) VALUES ($1) ON CONFLICT (truck_number) DO NOTHING`,
+          [r.truck]
+        );
+      }
+
       if (r.total_cost !== null && r.total_cost !== undefined) {
         await query(
           `INSERT INTO transactions (source_id, entry_date, kind, category, amount, currency, notes)
