@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import PeriodSelector from "@/components/PeriodSelector";
+import DateRangeFilter, { DateRange } from "@/components/DateRangeFilter";
 
 type DriverRow = {
   driver_id: string;
@@ -37,15 +38,17 @@ const PERIODS_3 = [
 
 export default function DriversPage() {
   const [period, setPeriod] = useState("day");
+  const [range, setRange] = useState<DateRange>({ from: null, to: null });
   const [rows, setRows] = useState<DriverRow[]>([]);
   const [flagged, setFlagged] = useState<FlaggedCall[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async (p: string) => {
+  const load = useCallback(async (p: string, r: DateRange) => {
     setLoading(true);
+    const suffix = r.from && r.to ? `&from=${r.from}&to=${r.to}` : "";
     const [driverRes, flagRes] = await Promise.all([
-      fetch(`/api/driver-report?period=${p}`).then((r) => r.json()),
-      fetch(`/api/flagged-calls`).then((r) => r.json()),
+      fetch(`/api/driver-report?period=${p}${suffix}`).then((res) => res.json()),
+      fetch(`/api/flagged-calls?${r.from && r.to ? `from=${r.from}&to=${r.to}` : ""}`).then((res) => res.json()),
     ]);
     setRows(driverRes.rows ?? []);
     setFlagged(flagRes.calls ?? []);
@@ -53,12 +56,12 @@ export default function DriversPage() {
   }, []);
 
   useEffect(() => {
-    load(period);
-  }, [period, load]);
+    load(period, range);
+  }, [period, range, load]);
 
   return (
     <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-5xl">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
         <div>
           <h1 className="font-display italic text-3xl">Drivers &amp; disputes</h1>
           <p className="text-sm text-[var(--ink-muted)] mt-1">
@@ -78,6 +81,10 @@ export default function DriversPage() {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="mb-8">
+        <DateRangeFilter onChange={setRange} />
       </div>
 
       {!loading && flagged.length > 0 && (

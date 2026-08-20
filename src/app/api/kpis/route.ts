@@ -3,7 +3,6 @@ import { query } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-
 const PERIODS = ["day", "week", "month", "year"] as const;
 type Period = (typeof PERIODS)[number];
 
@@ -11,51 +10,93 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const period = (searchParams.get("period") ?? "month") as Period;
   const points = Number(searchParams.get("points") ?? 12);
+  const from = searchParams.get("from"); // YYYY-MM-DD, optional
+  const to = searchParams.get("to"); // YYYY-MM-DD, optional
+  const hasRange = Boolean(from && to);
 
   if (!PERIODS.includes(period)) {
     return NextResponse.json({ error: "invalid period" }, { status: 400 });
   }
 
   try {
-    // Time-series: revenue vs cost per bucket, most recent N buckets
-    const series = await query(
-      `WITH buckets AS (
-         SELECT date_trunc($1, entry_date) AS bucket,
-                SUM(CASE WHEN kind = 'revenue' THEN amount ELSE 0 END) AS revenue,
-                SUM(CASE WHEN kind = 'cost' THEN amount ELSE 0 END) AS cost
-         FROM transactions
-         GROUP BY 1
-       )
-       SELECT bucket, revenue, cost, (revenue - cost) AS profit
-       FROM buckets
-       ORDER BY bucket DESC
-       LIMIT $2`,
-      [period, points]
-    );
-    series.reverse();
+    // Time-series: revenue vs cost per bucket.
+    // With a custom range: every bucket inside that range, oldest first.
+    // Without one: the most recent N buckets, all time.
+    const series = hasRange
+      ? await query(
+          `WITH buckets AS (
+             SELECT date_trunc($1, entry_date) AS bucket,
+                    SUM(CASE WHEN kind = 'revenue' THEN amount ELSE 0 END) AS revenue,
+                    SUM(CASE WHEN kind = 'cost' THEN amount ELSE 0 END) AS cost
+             FROM transactions
+             WHERE entry_date >= $2 AND entry_date <= $3
+             GROUP BY 1
+           )
+           SELECT bucket, revenue, cost, (revenue - cost) AS profit
+           FROM buckets
+           ORDER BY bucket ASC`,
+          [period, from, to]
+        )
+      : await query(
+          `WITH buckets AS (
+             SELECT date_trunc($1, entry_date) AS bucket,
+                    SUM(CASE WHEN kind = 'revenue' THEN amount ELSE 0 END) AS revenue,
+                    SUM(CASE WHEN kind = 'cost' THEN amount ELSE 0 END) AS cost
+             FROM transactions
+             GROUP BY 1
+           )
+           SELECT bucket, revenue, cost, (revenue - cost) AS profit
+           FROM buckets
+           ORDER BY bucket DESC
+           LIMIT $2`,
+          [period, points]
+        );
+    if (!hasRange) series.reverse();
 
-    // Cost breakdown by category, most recent bucket only
-    const breakdown = await query(
-      `SELECT category, SUM(amount) AS amount
-       FROM transactions
-       WHERE kind = 'cost' AND entry_date >= date_trunc($1, now())
-       GROUP BY category
-       ORDER BY amount DESC
-       LIMIT 8`,
-      [period]
-    );
+    // Cost breakdown by category: within the custom range if given,
+    // otherwise the current period (e.g. this month).
+    const breakdown = hasRange
+      ? await query(
+          `SELECT category, SUM(amount) AS amount
+           FROM transactions
+           WHERE kind = 'cost' AND entry_date >= $1 AND entry_date <= $2
+           GROUP BY category
+           ORDER BY amount DESC
+           LIMIT 8`,
+          [from, to]
+        )
+      : await query(
+          `SELECT category, SUM(amount) AS amount
+           FROM transactions
+           WHERE kind = 'cost' AND entry_date >= date_trunc($1, now())
+           GROUP BY category
+           ORDER BY amount DESC
+           LIMIT 8`,
+          [period]
+        );
 
-    // Overall totals (all time) for KPI cards
-    const totalsRows = await query<{ revenue: string; cost: string; count: string }>(
-      `SELECT
-         COALESCE(SUM(CASE WHEN kind = 'revenue' THEN amount ELSE 0 END), 0) AS revenue,
-         COALESCE(SUM(CASE WHEN kind = 'cost' THEN amount ELSE 0 END), 0) AS cost,
-         COUNT(*) AS count
-       FROM transactions`
-    );
+    // Totals for the KPI cards: within the range if given, else all time.
+    const totalsRows = hasRange
+      ? await query<{ revenue: string; cost: string; count: string }>(
+          `SELECT
+             COALESCE(SUM(CASE WHEN kind = 'revenue' THEN amount ELSE 0 END), 0) AS revenue,
+             COALESCE(SUM(CASE WHEN kind = 'cost' THEN amount ELSE 0 END), 0) AS cost,
+             COUNT(*) AS count
+           FROM transactions
+           WHERE entry_date >= $1 AND entry_date <= $2`,
+          [from, to]
+        )
+      : await query<{ revenue: string; cost: string; count: string }>(
+          `SELECT
+             COALESCE(SUM(CASE WHEN kind = 'revenue' THEN amount ELSE 0 END), 0) AS revenue,
+             COALESCE(SUM(CASE WHEN kind = 'cost' THEN amount ELSE 0 END), 0) AS cost,
+             COUNT(*) AS count
+           FROM transactions`
+        );
     const totals = totalsRows[0];
 
-    // Simple linear projection for the next bucket based on the trailing points
+    // Simple linear projection for the next bucket based on the trailing points.
+    // Not meaningful with only a couple of buckets in a narrow custom range.
     const numeric = series.map((s: any) => Number(s.profit));
     let projectedNext: number | null = null;
     if (numeric.length >= 2) {
@@ -72,6 +113,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       period,
+      range: hasRange ? { from, to } : null,
       series,
       breakdown,
       totals: {

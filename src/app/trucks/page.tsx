@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import DateRangeFilter, { DateRange } from "@/components/DateRangeFilter";
 
 type TruckRow = {
   truck: string;
@@ -28,19 +29,25 @@ export default function TrucksPage() {
   const [connected, setConnected] = useState(true);
   const [samsaraError, setSamsaraError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState<DateRange>({ from: null, to: null });
+
+  const load = useCallback(async (r: DateRange) => {
+    setLoading(true);
+    const suffix = r.from && r.to ? `?from=${r.from}&to=${r.to}` : "";
+    const [truckRes, samsaraRes] = await Promise.all([
+      fetch(`/api/truck-report${suffix}`).then((res) => res.json()),
+      fetch("/api/samsara/vehicles").then((res) => res.json()),
+    ]);
+    setTrucks(truckRes.rows ?? []);
+    setVehicles(samsaraRes.vehicles ?? []);
+    setConnected(samsaraRes.connected);
+    setSamsaraError(samsaraRes.reason === "api_error" ? samsaraRes.error : null);
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/truck-report").then((r) => r.json()),
-      fetch("/api/samsara/vehicles").then((r) => r.json()),
-    ]).then(([truckRes, samsaraRes]) => {
-      setTrucks(truckRes.rows ?? []);
-      setVehicles(samsaraRes.vehicles ?? []);
-      setConnected(samsaraRes.connected);
-      setSamsaraError(samsaraRes.reason === "api_error" ? samsaraRes.error : null);
-      setLoading(false);
-    });
-  }, []);
+    load(range);
+  }, [range, load]);
 
   const matched = trucks.map((t) => {
     const targetName = t.samsara_name || t.truck;
@@ -51,9 +58,12 @@ export default function TrucksPage() {
   return (
     <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-5xl">
       <h1 className="font-display italic text-3xl mb-1">Trucks on the CAA project</h1>
-      <p className="text-sm text-[var(--ink-muted)] mb-8">
+      <p className="text-sm text-[var(--ink-muted)] mb-4">
         Usage and revenue from CAA calls, matched with live location and odometer from Samsara.
       </p>
+      <div className="mb-8">
+        <DateRangeFilter onChange={setRange} />
+      </div>
 
       {!connected && !samsaraError && (
         <div className="card px-5 py-4 mb-6" style={{ borderColor: "var(--accent)" }}>

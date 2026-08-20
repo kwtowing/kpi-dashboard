@@ -6,10 +6,12 @@ import KpiCard from "@/components/KpiCard";
 import TrajectoryChart from "@/components/TrajectoryChart";
 import CostBreakdown from "@/components/CostBreakdown";
 import SetupBanner from "@/components/SetupBanner";
+import DateRangeFilter, { DateRange } from "@/components/DateRangeFilter";
 import Link from "next/link";
 
 type KpiResponse = {
   period: string;
+  range: { from: string; to: string } | null;
   series: { bucket: string; revenue: number; cost: number; profit: number }[];
   breakdown: { category: string; amount: number }[];
   totals: { revenue: number; cost: number; profit: number; count: number };
@@ -18,15 +20,18 @@ type KpiResponse = {
 
 export default function DashboardPage() {
   const [period, setPeriod] = useState("month");
+  const [range, setRange] = useState<DateRange>({ from: null, to: null });
   const [data, setData] = useState<KpiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [flaggedCount, setFlaggedCount] = useState(0);
 
-  const load = useCallback(async (p: string) => {
+  const load = useCallback(async (p: string, r: DateRange) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/kpis?period=${p}&points=12`);
+      let url = `/api/kpis?period=${p}&points=12`;
+      if (r.from && r.to) url += `&from=${r.from}&to=${r.to}`;
+      const res = await fetch(url);
       if (res.status === 500) {
         const body = await res.json();
         if (String(body.error ?? "").includes("does not exist") || String(body.error ?? "").includes("DATABASE_URL")) {
@@ -46,8 +51,8 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    load(period);
-  }, [period, load]);
+    load(period, range);
+  }, [period, range, load]);
 
   useEffect(() => {
     fetch("/api/flagged-calls")
@@ -57,12 +62,12 @@ export default function DashboardPage() {
   }, []);
 
   if (needsSetup) {
-    return <SetupBanner onReady={() => load(period)} />;
+    return <SetupBanner onReady={() => load(period, range)} />;
   }
 
   return (
     <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-6xl">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
         <div>
           <h1 className="font-display italic text-3xl">Executive Dashboard</h1>
           <p className="text-sm text-[var(--ink-muted)] mt-1">
@@ -70,6 +75,10 @@ export default function DashboardPage() {
           </p>
         </div>
         <PeriodSelector value={period} onChange={setPeriod} />
+      </div>
+
+      <div className="mb-8">
+        <DateRangeFilter onChange={setRange} />
       </div>
 
       {flaggedCount > 0 && (
