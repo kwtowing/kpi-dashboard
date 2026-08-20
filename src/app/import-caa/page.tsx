@@ -156,7 +156,7 @@ export default function ImportCaaPage() {
   const totalRevenue = rows.reduce((sum, r) => sum + (r.total_cost ?? 0), 0);
 
   return (
-    <div className="px-8 py-8 max-w-2xl">
+    <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-2xl">
       <h1 className="font-display italic text-3xl mb-1">Import CAA productivity report</h1>
       <p className="text-sm text-[var(--ink-muted)] mb-8">
         Upload the .xls export directly — KW Towing Operations Intelligence Portal already knows this report&apos;s layout, so
@@ -182,7 +182,7 @@ export default function ImportCaaPage() {
               {rows.length} calls found · total revenue{" "}
               <span className="font-mono-num">${totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
             </div>
-            <table className="w-full text-xs">
+            <div className="overflow-x-auto"><table className="w-full text-xs">
               <thead>
                 <tr className="text-left text-[var(--ink-muted)]">
                   <th className="pb-2 font-normal">Date</th>
@@ -203,7 +203,7 @@ export default function ImportCaaPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
 
           <div className="flex items-center gap-3">

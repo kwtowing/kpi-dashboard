@@ -49,7 +49,7 @@ export default function RankingsPage() {
   });
 
   return (
-    <div className="px-8 py-8 max-w-4xl">
+    <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-4xl">
       <h1 className="font-display italic text-3xl mb-1">Rankings</h1>
       <p className="text-sm text-[var(--ink-muted)] mb-8">
         Driver and truck leaderboards from every CAA call recorded so far.
@@ -90,7 +90,7 @@ export default function RankingsPage() {
         </div>
       ) : (
         <div className="card overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead>
               <tr className="text-left text-[var(--ink-muted)] text-xs border-b border-[var(--line)]">
                 <th className="px-5 py-2 font-normal">#</th>
@@ -123,7 +123,7 @@ export default function RankingsPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
     </div>

@@ -72,7 +72,7 @@ export default function UploadPage() {
   const ready = TARGET_FIELDS.filter((f) => f.key !== "notes").every((f) => mapping[f.key]);
 
   return (
-    <div className="px-8 py-8 max-w-2xl">
+    <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-2xl">
       <h1 className="font-display italic text-3xl mb-1">Import CSV</h1>
       <p className="text-sm text-[var(--ink-muted)] mb-8">
         Upload a spreadsheet export from any tool. Map its columns once — you can reuse this
@@ -120,7 +120,7 @@ export default function UploadPage() {
           <div className="card p-5">
             <div className="text-sm font-medium mb-1">Preview</div>
             <div className="text-xs text-[var(--ink-muted)] mb-3">First 3 rows, as they&apos;ll be imported</div>
-            <table className="w-full text-xs">
+            <div className="overflow-x-auto"><table className="w-full text-xs">
               <thead>
                 <tr className="text-left text-[var(--ink-muted)]">
                   {TARGET_FIELDS.map((f) => (
@@ -139,7 +139,7 @@ export default function UploadPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
 
           <div className="flex items-center gap-3">

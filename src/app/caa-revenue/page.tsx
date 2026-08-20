@@ -31,7 +31,7 @@ export default function CaaRevenuePage() {
   }, []);
 
   return (
-    <div className="px-8 py-8 max-w-4xl">
+    <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-4xl">
       <h1 className="font-display italic text-3xl mb-1">CAA Revenue</h1>
       <p className="text-sm text-[var(--ink-muted)] mt-1 mb-8">
         Revenue broken down by CAA trouble code, before and after HST. All figures in CAD.
@@ -51,7 +51,7 @@ export default function CaaRevenuePage() {
       ) : (
         <div className="space-y-6">
           {totals && (
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="card px-5 py-4">
                 <div className="text-xs text-[var(--ink-muted)] mb-2">Calls</div>
                 <div className="font-mono-num text-2xl font-medium">{totals.calls}</div>
@@ -74,7 +74,7 @@ export default function CaaRevenuePage() {
           )}
 
           <div className="card overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-[var(--ink-muted)] text-xs border-b border-[var(--line)]">
                   <th className="px-5 py-2 font-normal">Trouble code</th>
@@ -107,7 +107,7 @@ export default function CaaRevenuePage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         </div>
       )}

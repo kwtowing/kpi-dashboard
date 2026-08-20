@@ -40,7 +40,7 @@ export default function RevenueCostPage() {
   const ratesConfigured = drivers.some((d) => d.hourly_rate !== null);
 
   return (
-    <div className="px-8 py-8 max-w-5xl">
+    <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-5xl">
       <h1 className="font-display italic text-3xl mb-1">Revenue vs Operational Cost</h1>
       <p className="text-sm text-[var(--ink-muted)] mt-1 mb-8">
         Revenue minus estimated driver labour cost, by driver and truck. All figures in CAD.
@@ -61,7 +61,7 @@ export default function RevenueCostPage() {
         <div className="text-sm text-[var(--ink-muted)]">Loading…</div>
       ) : (
         <div className="space-y-6">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="card px-5 py-4">
               <div className="text-xs text-[var(--ink-muted)] mb-2">Total revenue</div>
               <div className="font-mono-num text-2xl font-medium" style={{ color: "var(--revenue)" }}>
@@ -89,7 +89,7 @@ export default function RevenueCostPage() {
                 Labour cost estimated from call duration (response to clear time) × hourly rate
               </div>
             </div>
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-[var(--ink-muted)] text-xs border-b border-[var(--line)]">
                   <th className="px-5 py-2 font-normal">Driver</th>
@@ -121,7 +121,7 @@ export default function RevenueCostPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
 
           <div className="card overflow-hidden">
@@ -132,7 +132,7 @@ export default function RevenueCostPage() {
                 revenue only, for now
               </div>
             </div>
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-[var(--ink-muted)] text-xs border-b border-[var(--line)]">
                   <th className="px-5 py-2 font-normal">Truck</th>
@@ -157,7 +157,7 @@ export default function RevenueCostPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         </div>
       )}

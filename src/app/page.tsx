@@ -61,8 +61,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="px-8 py-8 max-w-6xl">
-      <div className="flex items-center justify-between mb-8">
+    <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-6xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="font-display italic text-3xl">Executive Dashboard</h1>
           <p className="text-sm text-[var(--ink-muted)] mt-1">
@@ -90,7 +90,7 @@ export default function DashboardPage() {
         <div className="text-sm text-[var(--ink-muted)]">Loading…</div>
       ) : (
         <div className="space-y-6">
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard label="Total revenue" value={data.totals.revenue} tone="revenue" />
             <KpiCard label="Total cost" value={data.totals.cost} tone="cost" />
             <KpiCard label="Net profit" value={data.totals.profit} tone="accent" />
@@ -103,7 +103,7 @@ export default function DashboardPage() {
 
           <TrajectoryChart series={data.series} period={data.period} projectedNext={data.projectedNext} />
 
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <CostBreakdown breakdown={data.breakdown} />
             <RevenueVsCost series={data.series} period={data.period} />
           </div>

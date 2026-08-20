@@ -61,7 +61,7 @@ export default function AdministrationPage() {
   }
 
   return (
-    <div className="px-8 py-8 max-w-4xl">
+    <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-4xl">
       <h1 className="font-display italic text-3xl mb-1">Administration</h1>
       <p className="text-sm text-[var(--ink-muted)] mb-8">
         Master records for every driver and truck. Names and codes here link CAA calls,
@@ -91,7 +91,7 @@ export default function AdministrationPage() {
               No drivers yet — import a CAA report to auto-populate driver IDs here.
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-[var(--ink-muted)] text-xs border-b border-[var(--line)]">
                   <th className="px-5 py-2 font-normal">Driver ID</th>
@@ -106,7 +106,7 @@ export default function AdministrationPage() {
                   <DriverRow key={d.driver_id} driver={d} onSave={saveDriver} />
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
       ) : (
@@ -116,7 +116,7 @@ export default function AdministrationPage() {
               No trucks yet — import a CAA report to auto-populate truck codes here.
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-[var(--ink-muted)] text-xs border-b border-[var(--line)]">
                   <th className="px-5 py-2 font-normal">Truck code</th>
@@ -130,7 +130,7 @@ export default function AdministrationPage() {
                   <TruckRow key={t.truck_number} truck={t} onSave={saveTruck} />
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
       )}

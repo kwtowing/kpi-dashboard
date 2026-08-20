@@ -44,7 +44,7 @@ export default function AddEntryPage() {
   }
 
   return (
-    <div className="px-8 py-8 max-w-lg">
+    <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-lg">
       <h1 className="font-display italic text-3xl mb-1">Add entry</h1>
       <p className="text-sm text-[var(--ink-muted)] mb-8">
         Log a revenue or cost entry by hand. It shows up on the dashboard immediately.

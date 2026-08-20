@@ -1,17 +1,39 @@
 import type { Metadata } from "next";
+import { Fraunces, Inter, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
 
+const display = Fraunces({
+  variable: "--font-display",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  style: ["normal", "italic"],
+});
+
+const body = Inter({
+  variable: "--font-body",
+  subsets: ["latin"],
+});
+
+const mono = IBM_Plex_Mono({
+  variable: "--font-mono",
+  subsets: ["latin"],
+  weight: ["400", "500"],
+});
+
 export const metadata: Metadata = {
-  title: "KW Towing Operations Intelligence Portal — Operational KPI Dashboard",
-  description: "Financial trajectories and operational cost reporting.",
+  title: "KW Towing Operations Intelligence Portal",
+  description: "Fleet, CAA revenue, and operational cost intelligence for KW Towing.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className="h-full antialiased">
-      <body className="min-h-full bg-[var(--bg)] text-[var(--ink)]">
-        <div className="flex min-h-screen">
+    <html
+      lang="en"
+      className={`${display.variable} ${body.variable} ${mono.variable} h-full antialiased`}
+    >
+      <body className="min-h-full bg-[var(--bg)] text-[var(--ink)] font-[family-name:var(--font-body)]">
+        <div className="flex flex-col lg:flex-row min-h-screen">
           <Sidebar />
           <main className="flex-1 min-w-0">{children}</main>
         </div>

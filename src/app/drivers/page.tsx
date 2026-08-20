@@ -57,8 +57,8 @@ export default function DriversPage() {
   }, [period, load]);
 
   return (
-    <div className="px-8 py-8 max-w-5xl">
-      <div className="flex items-center justify-between mb-8">
+    <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-5xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="font-display italic text-3xl">Drivers &amp; disputes</h1>
           <p className="text-sm text-[var(--ink-muted)] mt-1">
@@ -114,7 +114,7 @@ export default function DriversPage() {
                 No call data yet — import a CAA report to see this breakdown.
               </div>
             ) : (
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto"><table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-[var(--ink-muted)] text-xs border-b border-[var(--line)]">
                     <th className="px-5 py-2 font-normal">Period</th>
@@ -152,7 +152,7 @@ export default function DriversPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </div>
 
@@ -162,7 +162,7 @@ export default function DriversPage() {
                 <div className="font-display italic text-lg">Flagged calls ($0 total cost)</div>
                 <div className="text-xs text-[var(--ink-muted)]">Review these with CAA — likely disputes</div>
               </div>
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto"><table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-[var(--ink-muted)] text-xs border-b border-[var(--line)]">
                     <th className="px-5 py-2 font-normal">Date</th>
@@ -185,7 +185,7 @@ export default function DriversPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             </div>
           )}
         </div>
