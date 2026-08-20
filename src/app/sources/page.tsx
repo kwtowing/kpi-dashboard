@@ -4,6 +4,32 @@ import { useEffect, useState } from "react";
 
 type Source = { id: number; name: string; type: string; created_at: string };
 
+function RunMigrations() {
+  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+
+  async function run() {
+    setStatus("loading");
+    try {
+      const res = await fetch("/api/setup", { method: "POST" });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error ?? "Failed");
+      setStatus("done");
+    } catch {
+      setStatus("error");
+    }
+  }
+
+  return (
+    <button
+      onClick={run}
+      disabled={status === "loading"}
+      className="px-4 py-2 rounded-full bg-[var(--bg)] border border-[var(--line)] text-sm disabled:opacity-50"
+    >
+      {status === "loading" ? "Updating…" : status === "done" ? "Up to date ✓" : status === "error" ? "Failed, try again" : "Update database"}
+    </button>
+  );
+}
+
 export default function SourcesPage() {
   const [sources, setSources] = useState<Source[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,6 +74,16 @@ export default function SourcesPage() {
           )}
         </div>
       )}
+
+      <div className="card p-5 mt-6">
+        <div className="text-sm font-medium mb-2">Database up to date?</div>
+        <p className="text-xs text-[var(--ink-muted)] leading-relaxed mb-3">
+          If a new import type was added to the app (like the CAA report), click this once so
+          the database picks up any new tables. It&apos;s safe to click any time — it never
+          touches your existing data.
+        </p>
+        <RunMigrations />
+      </div>
 
       <div className="card p-5 mt-6">
         <div className="text-sm font-medium mb-2">Connecting a live API</div>

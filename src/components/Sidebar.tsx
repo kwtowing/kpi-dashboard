@@ -7,7 +7,8 @@ const NAV = [
   { href: "/", label: "Dashboard", num: "01" },
   { href: "/add", label: "Add entry", num: "02" },
   { href: "/upload", label: "Import CSV", num: "03" },
-  { href: "/sources", label: "Data sources", num: "04" },
+  { href: "/import-caa", label: "Import CAA report", num: "04" },
+  { href: "/sources", label: "Data sources", num: "05" },
 ];
 
 export default function Sidebar() {

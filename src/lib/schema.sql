@@ -26,3 +26,35 @@ CREATE INDEX IF NOT EXISTS idx_transactions_kind ON transactions (kind);
 INSERT INTO data_sources (name, type)
 SELECT 'Manual Entry', 'manual'
 WHERE NOT EXISTS (SELECT 1 FROM data_sources WHERE name = 'Manual Entry');
+
+-- Call-level operational detail from the CAA Garage Productivity report.
+-- One row per towing call, kept separately from `transactions` so wait times,
+-- driver/truck/garage, and mileage stay queryable for operational reporting,
+-- not just the revenue rollups.
+CREATE TABLE IF NOT EXISTS tow_calls (
+  id                 SERIAL PRIMARY KEY,
+  source_id          INTEGER REFERENCES data_sources(id) ON DELETE SET NULL,
+  call_no            TEXT NOT NULL,
+  receive_date       DATE NOT NULL,
+  re_dt              TIMESTAMPTZ,
+  cl_dt              TIMESTAMPTZ,
+  call_status        TEXT,
+  pta_wait           NUMERIC(10, 2),
+  garage             TEXT,
+  truck              TEXT,
+  driver_id          TEXT,
+  trouble_cd         TEXT,
+  club_code          TEXT,
+  om_mileage         NUMERIC(10, 2),
+  subtotal           NUMERIC(14, 2),
+  tax                NUMERIC(14, 2),
+  total_cost         NUMERIC(14, 2),
+  towed_kms_paid     NUMERIC(10, 2),
+  towed_kms          NUMERIC(10, 2),
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (call_no, receive_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tow_calls_receive_date ON tow_calls (receive_date);
+CREATE INDEX IF NOT EXISTS idx_tow_calls_garage ON tow_calls (garage);
+CREATE INDEX IF NOT EXISTS idx_tow_calls_driver ON tow_calls (driver_id);
