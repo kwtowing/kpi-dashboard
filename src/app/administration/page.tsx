@@ -21,20 +21,27 @@ type Truck = {
   status: string;
 };
 
+type SamsaraDriverOption = { id: string; name: string; username?: string };
+
 export default function AdministrationPage() {
   const [tab, setTab] = useState<"drivers" | "trucks">("drivers");
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [trucks, setTrucks] = useState<Truck[]>([]);
+  const [samsaraDrivers, setSamsaraDrivers] = useState<SamsaraDriverOption[]>([]);
+  const [samsaraConnected, setSamsaraConnected] = useState(true);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [d, t] = await Promise.all([
+    const [d, t, sd] = await Promise.all([
       fetch("/api/drivers").then((r) => r.json()),
       fetch("/api/trucks-master").then((r) => r.json()),
+      fetch("/api/samsara/drivers").then((r) => r.json()),
     ]);
     setDrivers(d.drivers ?? []);
     setTrucks(t.trucks ?? []);
+    setSamsaraDrivers(sd.drivers ?? []);
+    setSamsaraConnected(sd.connected);
     setLoading(false);
   }, []);
 
@@ -103,7 +110,7 @@ export default function AdministrationPage() {
               </thead>
               <tbody>
                 {drivers.map((d) => (
-                  <DriverRow key={d.driver_id} driver={d} onSave={saveDriver} />
+                  <DriverRow key={d.driver_id} driver={d} onSave={saveDriver} samsaraDrivers={samsaraDrivers} samsaraConnected={samsaraConnected} />
                 ))}
               </tbody>
             </table></div>
@@ -142,11 +149,27 @@ export default function AdministrationPage() {
   );
 }
 
-function DriverRow({ driver, onSave }: { driver: Driver; onSave: (d: Driver) => void }) {
+function DriverRow({
+  driver,
+  onSave,
+  samsaraDrivers,
+  samsaraConnected,
+}: {
+  driver: Driver;
+  onSave: (d: Driver) => void;
+  samsaraDrivers: { id: string; name: string; username?: string }[];
+  samsaraConnected: boolean;
+}) {
   const [name, setName] = useState(driver.driver_name ?? "");
   const [samsaraId, setSamsaraId] = useState(driver.samsara_driver_id ?? "");
   const [rate, setRate] = useState(driver.hourly_rate?.toString() ?? "");
   const [dirty, setDirty] = useState(false);
+
+  // If the currently-saved value doesn't match any real Samsara driver ID,
+  // flag it — this is exactly what happened with usernames like "Davood32"
+  // being entered instead of Samsara's actual internal driver ID.
+  const currentValueIsStale =
+    samsaraConnected && samsaraDrivers.length > 0 && samsaraId && !samsaraDrivers.some((d) => d.id === samsaraId);
 
   return (
     <tr className="border-t border-[var(--line)]">
@@ -163,15 +186,40 @@ function DriverRow({ driver, onSave }: { driver: Driver; onSave: (d: Driver) => 
         />
       </td>
       <td className="px-5 py-2">
-        <input
-          value={samsaraId}
-          onChange={(e) => {
-            setSamsaraId(e.target.value);
-            setDirty(true);
-          }}
-          placeholder="—"
-          className="w-full bg-transparent border-b border-transparent focus:border-[var(--line)] outline-none text-sm font-mono-num"
-        />
+        {samsaraConnected && samsaraDrivers.length > 0 ? (
+          <select
+            value={samsaraId}
+            onChange={(e) => {
+              setSamsaraId(e.target.value);
+              setDirty(true);
+            }}
+            className={`bg-transparent text-sm outline-none max-w-[180px] ${currentValueIsStale ? "text-[var(--cost)]" : ""}`}
+          >
+            <option value="">— not linked —</option>
+            {samsaraId && currentValueIsStale && (
+              <option value={samsaraId}>{samsaraId} (not found in Samsara)</option>
+            )}
+            {samsaraDrivers.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+                {d.username ? ` (${d.username})` : ""}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            value={samsaraId}
+            onChange={(e) => {
+              setSamsaraId(e.target.value);
+              setDirty(true);
+            }}
+            placeholder="—"
+            className="w-full bg-transparent border-b border-transparent focus:border-[var(--line)] outline-none text-sm font-mono-num"
+          />
+        )}
+        {currentValueIsStale && (
+          <div className="text-[10px] text-[var(--cost)] mt-0.5">Doesn&apos;t match a real Samsara driver</div>
+        )}
       </td>
       <td className="px-5 py-2">
         <input

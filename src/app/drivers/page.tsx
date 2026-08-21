@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import PeriodSelector from "@/components/PeriodSelector";
 import DateRangeFilter, { DateRange } from "@/components/DateRangeFilter";
 import DriverPerformanceExplorer from "@/components/DriverPerformanceExplorer";
+import ExportButton from "@/components/ExportButton";
 
 type DriverRow = {
   driver_id: string;
@@ -84,8 +85,36 @@ export default function DriversPage() {
         </div>
       </div>
 
-      <div className="mb-8">
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
         <DateRangeFilter onChange={setRange} />
+        <ExportButton
+          filename="KW-Towing-Drivers-Disputes"
+          sheets={[
+            {
+              name: "Driver breakdown",
+              rows: rows.map((r) => ({
+                Period: new Date(r.bucket).toLocaleDateString(),
+                Driver: r.driver_id,
+                Calls: r.call_count,
+                "KM paid": r.km_paid,
+                "Total cost (CAD)": r.total_cost,
+                "Zero-paid calls": r.zero_value_count,
+              })),
+            },
+            {
+              name: "Flagged ($0) calls",
+              rows: flagged.map((c) => ({
+                Date: c.receive_date,
+                "Call #": c.call_no,
+                Garage: c.garage ?? "",
+                Driver: c.driver_id ?? "",
+                Truck: c.truck ?? "",
+                "Trouble code": c.trouble_cd ?? "",
+                "KM towed": c.towed_kms ?? "",
+              })),
+            },
+          ]}
+        />
       </div>
 
       {!loading && flagged.length > 0 && (

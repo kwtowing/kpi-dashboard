@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import DateRangeFilter, { DateRange } from "@/components/DateRangeFilter";
+import ExportButton from "@/components/ExportButton";
 
 type Driver = { driver_id: string; driver_name: string | null };
 
@@ -168,7 +169,48 @@ export default function DriverPerformanceExplorer() {
       ) : (
         <div>
           <div className="px-5 py-4 border-b border-[var(--line)]">
-            <div className="text-sm font-medium mb-3">{driverName || driverId}</div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-medium">{driverName || driverId}</div>
+              <ExportButton
+                filename={`KW-Towing-${driverName || driverId}-Performance`}
+                sheets={[
+                  {
+                    name: "Summary",
+                    rows: summary
+                      ? [
+                          { Metric: "Driver", Value: driverName || driverId },
+                          { Metric: "Calls", Value: summary.calls },
+                          { Metric: "Revenue (CAD)", Value: summary.revenue },
+                          { Metric: "KM paid", Value: summary.km_paid },
+                          { Metric: "Avg revenue/call (CAD)", Value: summary.avg_revenue_per_call },
+                          { Metric: "Zero-paid calls", Value: summary.zero_paid_calls },
+                          { Metric: "Trucks used", Value: summary.trucks_used },
+                          { Metric: "Hours (est.)", Value: summary.hours },
+                          { Metric: "Hourly rate (CAD)", Value: summary.hourly_rate ?? "not set" },
+                          { Metric: "Labour cost (CAD)", Value: summary.labour_cost ?? "not set" },
+                          { Metric: "Date range", Value: range.from && range.to ? `${range.from} to ${range.to}` : "All time" },
+                          { Metric: "Truck filter", Value: truck || "All trucks" },
+                          { Metric: "Service code filter", Value: troubleCd || "All codes" },
+                          { Metric: "Payment filter", Value: payment },
+                        ]
+                      : [],
+                  },
+                  {
+                    name: "Calls",
+                    rows: calls.map((c) => ({
+                      Date: c.receive_date,
+                      "Call #": c.call_no,
+                      Truck: c.truck ?? "",
+                      Garage: c.garage ?? "",
+                      "Trouble code": c.trouble_cd ?? "",
+                      "KM paid": c.towed_kms_paid ?? "",
+                      "KM towed": c.towed_kms ?? "",
+                      "Total cost (CAD)": c.total_cost ?? "",
+                    })),
+                  },
+                ]}
+              />
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <Metric label="Calls" value={summary?.calls ?? 0} />
               <Metric label="Revenue (CAD)" value={`$${fmt(summary?.revenue ?? 0)}`} tone="revenue" />

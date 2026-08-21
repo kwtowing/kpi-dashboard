@@ -7,6 +7,7 @@ import TrajectoryChart from "@/components/TrajectoryChart";
 import CostBreakdown from "@/components/CostBreakdown";
 import SetupBanner from "@/components/SetupBanner";
 import DateRangeFilter, { DateRange } from "@/components/DateRangeFilter";
+import ExportButton from "@/components/ExportButton";
 import Link from "next/link";
 
 type KpiResponse = {
@@ -77,8 +78,39 @@ export default function DashboardPage() {
         <PeriodSelector value={period} onChange={setPeriod} />
       </div>
 
-      <div className="mb-8">
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
         <DateRangeFilter onChange={setRange} />
+        {data && (
+          <ExportButton
+            filename="KW-Towing-Executive-Dashboard"
+            sheets={[
+              {
+                name: "Summary",
+                rows: [
+                  { Metric: "Total revenue (CAD)", Value: data.totals.revenue },
+                  { Metric: "Total cost (CAD)", Value: data.totals.cost },
+                  { Metric: "Net profit (CAD)", Value: data.totals.profit },
+                  { Metric: "Projected next period (CAD)", Value: data.projectedNext ?? "" },
+                  { Metric: "Period", Value: data.period },
+                  { Metric: "Range", Value: range.from && range.to ? `${range.from} to ${range.to}` : "All time" },
+                ],
+              },
+              {
+                name: "Trajectory",
+                rows: data.series.map((s) => ({
+                  Date: new Date(s.bucket).toLocaleDateString(),
+                  "Revenue (CAD)": s.revenue,
+                  "Cost (CAD)": s.cost,
+                  "Profit (CAD)": s.profit,
+                })),
+              },
+              {
+                name: "Cost breakdown",
+                rows: data.breakdown.map((b) => ({ Category: b.category, "Amount (CAD)": b.amount })),
+              },
+            ]}
+          />
+        )}
       </div>
 
       {flaggedCount > 0 && (

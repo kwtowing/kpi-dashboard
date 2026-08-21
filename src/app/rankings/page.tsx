@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import ExportButton from "@/components/ExportButton";
 
 type Row = {
   calls: number;
@@ -80,6 +81,22 @@ export default function RankingsPage() {
             </option>
           ))}
         </select>
+        <ExportButton
+          filename={`KW-Towing-Rankings-${tab}`}
+          sheets={[
+            {
+              name: tab === "drivers" ? "Driver rankings" : "Truck rankings",
+              rows: sorted.map((r, i) => ({
+                Rank: i + 1,
+                [tab === "drivers" ? "Driver" : "Truck"]: "driver_id" in r ? r.driver_id : r.truck,
+                Calls: r.calls,
+                "Revenue (CAD)": r.revenue,
+                "Revenue/km (CAD)": r.revenue_per_km ?? "",
+                "Zero-paid calls": r.zero_paid_calls,
+              })),
+            },
+          ]}
+        />
       </div>
 
       {loading ? (

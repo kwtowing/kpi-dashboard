@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import DateRangeFilter, { DateRange } from "@/components/DateRangeFilter";
+import ExportButton from "@/components/ExportButton";
 
 type TruckRow = {
   truck: string;
@@ -30,6 +31,96 @@ type Driver = { driver_id: string; samsara_driver_id: string | null };
 
 function normalize(s: string) {
   return s.trim().toLowerCase();
+}
+
+function TruckRowExpandable({
+  t,
+  connected,
+}: {
+  t: TruckRow & { vehicle?: SamsaraVehicle; matchedVia: "assignment" | "name" | null };
+  connected: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [breakdown, setBreakdown] = useState<{ driver_id: string; calls: number; revenue: number; km_paid: number }[] | null>(null);
+
+  function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && breakdown === null) {
+      fetch(`/api/truck-driver-breakdown?truck=${encodeURIComponent(t.truck)}`)
+        .then((r) => r.json())
+        .then((j) => setBreakdown(j.drivers ?? []));
+    }
+  }
+
+  return (
+    <>
+      <tr className="border-t border-[var(--line)] cursor-pointer hover:bg-[var(--bg)]" onClick={toggle}>
+        <td className="px-5 py-2.5 text-[var(--ink-muted)] w-6">
+          <span className={`inline-block transition-transform ${open ? "rotate-90" : ""}`}>›</span>
+        </td>
+        <td className="px-5 py-2.5 font-medium">{t.truck}</td>
+        <td className="px-5 py-2.5 font-mono-num">{t.call_count}</td>
+        <td className="px-5 py-2.5 font-mono-num">{Number(t.km_paid).toLocaleString()}</td>
+        <td className="px-5 py-2.5 font-mono-num" style={{ color: "var(--revenue)" }}>
+          ${Number(t.total_cost).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+        </td>
+        <td className="px-5 py-2.5 text-xs text-[var(--ink-muted)]">{new Date(t.last_used).toLocaleDateString()}</td>
+        <td className="px-5 py-2.5 text-xs">
+          {t.vehicle?.gps?.reverseGeo?.formattedLocation ??
+            (t.vehicle?.gps ? `${t.vehicle.gps.latitude.toFixed(3)}, ${t.vehicle.gps.longitude.toFixed(3)}` : "—")}
+        </td>
+        <td className="px-5 py-2.5 font-mono-num text-xs">
+          {t.vehicle?.obdOdometerMeters
+            ? `${(t.vehicle.obdOdometerMeters.value / 1000).toLocaleString(undefined, { maximumFractionDigits: 0 })} km`
+            : connected
+            ? "not linked"
+            : "—"}
+        </td>
+        <td className="px-5 py-2.5 text-xs text-[var(--ink-muted)]">
+          {t.matchedVia === "assignment" ? "driver assignment" : t.matchedVia === "name" ? "vehicle name" : "—"}
+        </td>
+      </tr>
+      {open && (
+        <tr className="border-t border-[var(--line)] bg-[var(--bg)]">
+          <td></td>
+          <td colSpan={8} className="px-5 py-3">
+            <div className="text-xs text-[var(--ink-muted)] mb-2">
+              Revenue breakdown by driver for {t.truck}
+            </div>
+            {breakdown === null ? (
+              <div className="text-xs text-[var(--ink-muted)]">Loading…</div>
+            ) : breakdown.length === 0 ? (
+              <div className="text-xs text-[var(--ink-muted)]">No driver data for this truck.</div>
+            ) : (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-[var(--ink-muted)]">
+                    <th className="py-1 font-normal">Driver</th>
+                    <th className="py-1 font-normal">Calls</th>
+                    <th className="py-1 font-normal">KM paid</th>
+                    <th className="py-1 font-normal">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {breakdown.map((d) => (
+                    <tr key={d.driver_id} className="border-t border-[var(--line)]">
+                      <td className="py-1.5">{d.driver_id}</td>
+                      <td className="py-1.5 font-mono-num">{d.calls}</td>
+                      <td className="py-1.5 font-mono-num">{Number(d.km_paid).toLocaleString()}</td>
+                      <td className="py-1.5 font-mono-num" style={{ color: "var(--revenue)" }}>
+                        ${Number(d.revenue).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </td>
+        </tr>
+      )}
+    </>
+  );
 }
 
 export default function TrucksPage() {
@@ -99,8 +190,26 @@ export default function TrucksPage() {
       <p className="text-sm text-[var(--ink-muted)] mb-4">
         Usage and revenue from CAA calls, matched with live location and odometer from Samsara.
       </p>
-      <div className="mb-8">
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
         <DateRangeFilter onChange={setRange} />
+        <ExportButton
+          filename="KW-Towing-Trucks"
+          sheets={[
+            {
+              name: "Truck usage",
+              rows: matched.map((t) => ({
+                Truck: t.truck,
+                Calls: t.call_count,
+                "KM paid": t.km_paid,
+                "Total cost (CAD)": t.total_cost,
+                "Last used": t.last_used,
+                "Samsara location": t.vehicle?.gps?.reverseGeo?.formattedLocation ?? "",
+                "Odometer (km)": t.vehicle?.obdOdometerMeters ? Math.round(t.vehicle.obdOdometerMeters.value / 1000) : "",
+                "Matched via": t.matchedVia ?? "",
+              })),
+            },
+          ]}
+        />
       </div>
 
       {!connected && !samsaraError && (
@@ -148,6 +257,7 @@ export default function TrucksPage() {
           <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead>
               <tr className="text-left text-[var(--ink-muted)] text-xs border-b border-[var(--line)]">
+                <th className="px-5 py-2 font-normal"></th>
                 <th className="px-5 py-2 font-normal">Truck</th>
                 <th className="px-5 py-2 font-normal">Calls</th>
                 <th className="px-5 py-2 font-normal">KM paid</th>
@@ -160,31 +270,7 @@ export default function TrucksPage() {
             </thead>
             <tbody>
               {matched.map((t) => (
-                <tr key={t.truck} className="border-t border-[var(--line)]">
-                  <td className="px-5 py-2.5 font-medium">{t.truck}</td>
-                  <td className="px-5 py-2.5 font-mono-num">{t.call_count}</td>
-                  <td className="px-5 py-2.5 font-mono-num">{Number(t.km_paid).toLocaleString()}</td>
-                  <td className="px-5 py-2.5 font-mono-num" style={{ color: "var(--revenue)" }}>
-                    ${Number(t.total_cost).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                  </td>
-                  <td className="px-5 py-2.5 text-xs text-[var(--ink-muted)]">
-                    {new Date(t.last_used).toLocaleDateString()}
-                  </td>
-                  <td className="px-5 py-2.5 text-xs">
-                    {t.vehicle?.gps?.reverseGeo?.formattedLocation ??
-                      (t.vehicle?.gps ? `${t.vehicle.gps.latitude.toFixed(3)}, ${t.vehicle.gps.longitude.toFixed(3)}` : "—")}
-                  </td>
-                  <td className="px-5 py-2.5 font-mono-num text-xs">
-                    {t.vehicle?.obdOdometerMeters
-                      ? `${(t.vehicle.obdOdometerMeters.value / 1000).toLocaleString(undefined, { maximumFractionDigits: 0 })} km`
-                      : connected
-                      ? "not linked"
-                      : "—"}
-                  </td>
-                  <td className="px-5 py-2.5 text-xs text-[var(--ink-muted)]">
-                    {t.matchedVia === "assignment" ? "driver assignment" : t.matchedVia === "name" ? "vehicle name" : "—"}
-                  </td>
-                </tr>
+                <TruckRowExpandable key={t.truck} t={t} connected={connected} />
               ))}
             </tbody>
           </table></div>

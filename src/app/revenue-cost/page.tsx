@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import ExportButton from "@/components/ExportButton";
 
 type DriverRow = {
   driver_id: string;
@@ -42,9 +43,38 @@ export default function RevenueCostPage() {
   return (
     <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-5xl">
       <h1 className="font-display italic text-3xl mb-1">Revenue vs Operational Cost</h1>
-      <p className="text-sm text-[var(--ink-muted)] mt-1 mb-8">
-        Revenue minus estimated driver labour cost, by driver and truck. All figures in CAD.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-8">
+        <p className="text-sm text-[var(--ink-muted)] mt-1">
+          Revenue minus estimated driver labour cost, by driver and truck. All figures in CAD.
+        </p>
+        <ExportButton
+          filename="KW-Towing-Revenue-vs-Cost"
+          sheets={[
+            {
+              name: "Driver profitability",
+              rows: drivers.map((d) => ({
+                Driver: d.driver_name || d.driver_id,
+                Calls: d.calls,
+                "Revenue (CAD)": d.revenue,
+                Hours: d.hours,
+                "Hourly rate (CAD)": d.hourly_rate ?? "not set",
+                "Labour cost (CAD)": d.labour_cost ?? "not set",
+                "Contribution (CAD)": d.contribution ?? "",
+              })),
+            },
+            {
+              name: "Truck revenue",
+              rows: trucks.map((t) => ({
+                Truck: t.truck,
+                Calls: t.calls,
+                "KM paid": t.km_paid,
+                "Revenue (CAD)": t.revenue,
+                "Revenue/km (CAD)": t.km_paid > 0 ? t.revenue / t.km_paid : "",
+              })),
+            },
+          ]}
+        />
+      </div>
 
       {!loading && !ratesConfigured && (
         <div className="card px-5 py-4 mb-6" style={{ borderColor: "var(--accent)" }}>

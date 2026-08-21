@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import ExportButton from "@/components/ExportButton";
 
 type CodeRow = {
   trouble_cd: string;
@@ -33,10 +34,28 @@ export default function CaaRevenuePage() {
   return (
     <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-4xl">
       <h1 className="font-display italic text-3xl mb-1">CAA Revenue</h1>
-      <p className="text-sm text-[var(--ink-muted)] mt-1 mb-8">
-        Revenue broken down by CAA trouble code, before and after HST. All figures in CAD.
-      </p>
-      <p className="text-xs text-[var(--ink-muted)] -mt-6 mb-8">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
+        <p className="text-sm text-[var(--ink-muted)] mt-1">
+          Revenue broken down by CAA trouble code, before and after HST. All figures in CAD.
+        </p>
+        <ExportButton
+          filename="KW-Towing-CAA-Revenue"
+          sheets={[
+            {
+              name: "Revenue by code",
+              rows: byCode.map((c) => ({
+                "Trouble code": c.trouble_cd,
+                Calls: c.calls,
+                "Gross revenue (CAD)": c.gross_revenue,
+                "HST (CAD)": c.tax,
+                "Net revenue (CAD)": c.net_revenue,
+                "Zero-paid": c.zero_paid,
+              })),
+            },
+          ]}
+        />
+      </div>
+      <p className="text-xs text-[var(--ink-muted)] mb-8">
         Codes are shown as they appear in the CAA report — a friendlier category grouping
         (Towing vs. Roadside, Light/Medium/Heavy) can be added once you tell me how CAA&apos;s
         trouble codes map to those categories.
