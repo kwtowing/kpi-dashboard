@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -15,7 +16,7 @@ const GROUPS: Group[] = [
   {
     label: "Fleet & Drivers",
     items: [
-      { href: "/fleet-performance", label: "Fleet Performance", built: false },
+      { href: "/fleet-performance", label: "Fleet Performance", built: true },
       { href: "/drivers", label: "Driver Performance & Disputes", built: true },
       { href: "/trucks", label: "Truck Performance", built: true },
       { href: "/driver-behaviour", label: "Driver Behaviour", built: false },
@@ -66,8 +67,8 @@ export default function Sidebar() {
   return (
     <>
       {/* Mobile top bar */}
-      <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 py-3 border-b border-[var(--line)] bg-[var(--surface)]">
-        <div className="font-display italic text-base">KW Towing</div>
+      <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 py-2 border-b border-[var(--line)] bg-[var(--surface)]">
+        <Image src="/kw-logo.png" alt="KW Towing" width={1223} height={644} className="h-9 w-auto" priority />
         <button
           onClick={() => setOpen(true)}
           aria-label="Open menu"
@@ -95,8 +96,10 @@ export default function Sidebar() {
       >
         <div className="px-6 pt-8 pb-6 flex items-start justify-between lg:block">
           <div>
-            <div className="font-display italic text-lg leading-tight">KW Towing</div>
-            <div className="font-display italic text-lg leading-tight">Operations Intelligence</div>
+            <Image src="/kw-logo.png" alt="KW Towing" width={1223} height={644} className="w-36 h-auto mb-2" priority />
+            <div className="font-display italic text-sm leading-tight text-[var(--ink-muted)]">
+              Operations Intelligence
+            </div>
             <div className="text-xs text-[var(--ink-muted)] mt-1.5 tracking-wide">Ontario · CAD</div>
           </div>
           <button

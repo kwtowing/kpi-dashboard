@@ -28,13 +28,18 @@ export interface SamsaraVehicleStat {
     latitude: number;
     longitude: number;
     time: string;
+    speedMilesPerHour?: number;
     reverseGeo?: { formattedLocation?: string };
   };
   obdOdometerMeters?: { value: number; time: string };
+  engineStates?: { value: string; time: string }; // "Off" | "Idle" | "On"
+  fuelPercents?: { value: number; time: string };
 }
 
+const STAT_TYPES = "gps,obdOdometerMeters,engineStates,fuelPercents";
+
 export async function listVehiclesWithStats(): Promise<SamsaraVehicleStat[]> {
-  const res = await fetch(`${BASE}/fleet/vehicles/stats?types=gps,obdOdometerMeters`, {
+  const res = await fetch(`${BASE}/fleet/vehicles/stats?types=${STAT_TYPES}`, {
     headers: authHeaders(),
     cache: "no-store",
   });

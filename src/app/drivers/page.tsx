@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import PeriodSelector from "@/components/PeriodSelector";
 import DateRangeFilter, { DateRange } from "@/components/DateRangeFilter";
+import DriverPerformanceExplorer from "@/components/DriverPerformanceExplorer";
 
 type DriverRow = {
   driver_id: string;
@@ -60,7 +61,7 @@ export default function DriversPage() {
   }, [period, range, load]);
 
   return (
-    <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-5xl">
+    <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-6xl">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
         <div>
           <h1 className="font-display italic text-3xl">Drivers &amp; disputes</h1>
@@ -195,6 +196,8 @@ export default function DriversPage() {
               </table></div>
             </div>
           )}
+
+          <DriverPerformanceExplorer />
         </div>
       )}
     </div>

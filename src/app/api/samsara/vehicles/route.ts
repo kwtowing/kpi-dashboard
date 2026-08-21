@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const vehicles = await listVehiclesWithStats();
-    return NextResponse.json({ connected: true, vehicles });
+    return NextResponse.json({ connected: true, vehicles, syncedAt: new Date().toISOString() });
   } catch (err: any) {
     if (err instanceof SamsaraNotConfigured) {
       return NextResponse.json({ connected: false, reason: "not_configured", vehicles: [] });
