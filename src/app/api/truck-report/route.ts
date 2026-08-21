@@ -18,7 +18,12 @@ export async function GET(req: NextRequest) {
                COALESCE(SUM(tc.towed_kms_paid), 0) AS km_paid,
                COALESCE(SUM(tc.total_cost), 0) AS total_cost,
                MAX(tc.receive_date) AS last_used,
-               tm.samsara_name
+               tm.samsara_name,
+               (
+                 SELECT t2.driver_id FROM tow_calls t2
+                 WHERE t2.truck = tc.truck AND t2.driver_id IS NOT NULL
+                 ORDER BY t2.receive_date DESC LIMIT 1
+               ) AS recent_driver_id
              FROM tow_calls tc
              LEFT JOIN truck_master tm ON tm.truck_number = tc.truck
              WHERE tc.truck IS NOT NULL AND tc.receive_date >= $1 AND tc.receive_date <= $2
@@ -33,7 +38,12 @@ export async function GET(req: NextRequest) {
                COALESCE(SUM(tc.towed_kms_paid), 0) AS km_paid,
                COALESCE(SUM(tc.total_cost), 0) AS total_cost,
                MAX(tc.receive_date) AS last_used,
-               tm.samsara_name
+               tm.samsara_name,
+               (
+                 SELECT t2.driver_id FROM tow_calls t2
+                 WHERE t2.truck = tc.truck AND t2.driver_id IS NOT NULL
+                 ORDER BY t2.receive_date DESC LIMIT 1
+               ) AS recent_driver_id
              FROM tow_calls tc
              LEFT JOIN truck_master tm ON tm.truck_number = tc.truck
              WHERE tc.truck IS NOT NULL

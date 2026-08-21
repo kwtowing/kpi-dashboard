@@ -49,3 +49,41 @@ export async function listVehiclesWithStats(): Promise<SamsaraVehicleStat[]> {
   const json = await res.json();
   return (json.data ?? []) as SamsaraVehicleStat[];
 }
+
+export interface SamsaraAssignment {
+  driverId: string;
+  driverName: string | null;
+  vehicleId: string;
+  vehicleName: string | null;
+  startTime: string;
+  endTime: string | null;
+}
+
+// Current driver <-> vehicle assignments — who's in what truck right now.
+// Samsara's assignments endpoint takes a time window; a narrow window ending
+// now surfaces whatever assignment is active at this moment.
+export async function getCurrentDriverVehicleAssignments(): Promise<SamsaraAssignment[]> {
+  const now = new Date();
+  const start = new Date(now.getTime() - 5 * 60 * 1000); // 5 min lookback
+  const params = new URLSearchParams({
+    startTime: start.toISOString(),
+    endTime: now.toISOString(),
+  });
+  const res = await fetch(`${BASE}/fleet/driver-vehicle-assignments?${params.toString()}`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error(`Samsara API error ${res.status}: ${await res.text()}`);
+  }
+  const json = await res.json();
+  const data = (json.data ?? []) as any[];
+  return data.map((a) => ({
+    driverId: String(a.driver?.id ?? a.driverId ?? ""),
+    driverName: a.driver?.name ?? null,
+    vehicleId: String(a.vehicle?.id ?? a.vehicleId ?? ""),
+    vehicleName: a.vehicle?.name ?? null,
+    startTime: a.startTime,
+    endTime: a.endTime ?? null,
+  }));
+}

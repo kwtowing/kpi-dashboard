@@ -10,6 +10,7 @@ type TruckRow = {
   total_cost: number;
   last_used: string;
   samsara_name: string | null;
+  recent_driver_id: string | null;
 };
 
 type SamsaraVehicle = {
@@ -19,6 +20,14 @@ type SamsaraVehicle = {
   obdOdometerMeters?: { value: number; time: string };
 };
 
+type Assignment = {
+  driverId: string;
+  vehicleId: string;
+  vehicleName: string | null;
+};
+
+type Driver = { driver_id: string; samsara_driver_id: string | null };
+
 function normalize(s: string) {
   return s.trim().toLowerCase();
 }
@@ -26,22 +35,30 @@ function normalize(s: string) {
 export default function TrucksPage() {
   const [trucks, setTrucks] = useState<TruckRow[]>([]);
   const [vehicles, setVehicles] = useState<SamsaraVehicle[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
   const [connected, setConnected] = useState(true);
   const [samsaraError, setSamsaraError] = useState<string | null>(null);
+  const [assignmentsError, setAssignmentsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<DateRange>({ from: null, to: null });
 
   const load = useCallback(async (r: DateRange) => {
     setLoading(true);
     const suffix = r.from && r.to ? `?from=${r.from}&to=${r.to}` : "";
-    const [truckRes, samsaraRes] = await Promise.all([
+    const [truckRes, samsaraRes, assignRes, driverRes] = await Promise.all([
       fetch(`/api/truck-report${suffix}`).then((res) => res.json()),
       fetch("/api/samsara/vehicles").then((res) => res.json()),
+      fetch("/api/samsara/assignments").then((res) => res.json()),
+      fetch("/api/drivers").then((res) => res.json()),
     ]);
     setTrucks(truckRes.rows ?? []);
     setVehicles(samsaraRes.vehicles ?? []);
     setConnected(samsaraRes.connected);
     setSamsaraError(samsaraRes.reason === "api_error" ? samsaraRes.error : null);
+    setAssignments(assignRes.assignments ?? []);
+    setAssignmentsError(assignRes.reason === "api_error" ? assignRes.error : null);
+    setDrivers(driverRes.drivers ?? []);
     setLoading(false);
   }, []);
 
@@ -50,9 +67,30 @@ export default function TrucksPage() {
   }, [range, load]);
 
   const matched = trucks.map((t) => {
-    const targetName = t.samsara_name || t.truck;
-    const vehicle = vehicles.find((v) => normalize(v.name) === normalize(targetName));
-    return { ...t, vehicle };
+    // Primary: who most recently drove this truck -> their Samsara driver ID
+    // -> Samsara's current assignment for that driver -> the vehicle.
+    let vehicle: SamsaraVehicle | undefined;
+    let matchedVia: "assignment" | "name" | null = null;
+
+    if (t.recent_driver_id) {
+      const driver = drivers.find((d) => d.driver_id === t.recent_driver_id);
+      if (driver?.samsara_driver_id) {
+        const assignment = assignments.find((a) => a.driverId === driver.samsara_driver_id);
+        if (assignment) {
+          vehicle = vehicles.find((v) => v.id === assignment.vehicleId);
+          if (vehicle) matchedVia = "assignment";
+        }
+      }
+    }
+
+    // Fallback: manually-set Samsara vehicle name, or the truck code itself.
+    if (!vehicle) {
+      const targetName = t.samsara_name || t.truck;
+      vehicle = vehicles.find((v) => normalize(v.name) === normalize(targetName));
+      if (vehicle) matchedVia = "name";
+    }
+
+    return { ...t, vehicle, matchedVia };
   });
 
   return (
@@ -87,6 +125,18 @@ export default function TrucksPage() {
         </div>
       )}
 
+      {connected && assignmentsError && (
+        <div className="card px-5 py-4 mb-6" style={{ borderColor: "var(--cost)" }}>
+          <div className="text-sm font-medium mb-1" style={{ color: "var(--cost)" }}>
+            Driver-vehicle assignment lookup failed
+          </div>
+          <p className="text-xs text-[var(--ink-muted)] leading-relaxed font-mono-num">{assignmentsError}</p>
+          <p className="text-xs text-[var(--ink-muted)] mt-2">
+            Falling back to name-based matching below.
+          </p>
+        </div>
+      )}
+
       {loading ? (
         <div className="text-sm text-[var(--ink-muted)]">Loading…</div>
       ) : trucks.length === 0 ? (
@@ -105,6 +155,7 @@ export default function TrucksPage() {
                 <th className="px-5 py-2 font-normal">Last used</th>
                 <th className="px-5 py-2 font-normal">Samsara location</th>
                 <th className="px-5 py-2 font-normal">Odometer</th>
+                <th className="px-5 py-2 font-normal">Matched via</th>
               </tr>
             </thead>
             <tbody>
@@ -130,6 +181,9 @@ export default function TrucksPage() {
                       ? "not linked"
                       : "—"}
                   </td>
+                  <td className="px-5 py-2.5 text-xs text-[var(--ink-muted)]">
+                    {t.matchedVia === "assignment" ? "driver assignment" : t.matchedVia === "name" ? "vehicle name" : "—"}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -137,14 +191,15 @@ export default function TrucksPage() {
         </div>
       )}
 
-      {connected && vehicles.length > 0 && (
+      {connected && (vehicles.length > 0 || assignments.length > 0) && (
         <p className="text-xs text-[var(--ink-muted)] mt-4">
-          Matching uses the Samsara vehicle name set for each truck in{" "}
+          Trucks link automatically via their most recent driver&apos;s current Samsara
+          assignment — set each driver&apos;s Samsara driver ID in{" "}
           <a href="/administration" className="underline">
-            Administration
-          </a>{" "}
-          — falling back to the truck code itself if none is set. A truck shows as &quot;not
-          linked&quot; until that name matches a vehicle in Samsara exactly.
+            Administration → Driver master
+          </a>
+          . If a driver has no active assignment right now, it falls back to matching the
+          truck&apos;s Samsara vehicle name (also set in Administration, under Truck master).
         </p>
       )}
     </div>
