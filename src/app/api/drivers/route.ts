@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const rows = await query(
       `INSERT INTO driver_master
          (driver_id, driver_name, samsara_driver_id, hourly_rate, monthly_salary, hours_per_day, days_per_week, compensation_type, status)
-       VALUES ($1, $2, $3, $4, $5, COALESCE($6, 8), COALESCE($7, 5), $8, COALESCE($9, 'active'))
+       VALUES ($1, $2, $3, $4, $5, COALESCE($6, 12), COALESCE($7, 5), $8, COALESCE($9, 'active'))
        ON CONFLICT (driver_id) DO UPDATE SET
          driver_name = EXCLUDED.driver_name,
          samsara_driver_id = EXCLUDED.samsara_driver_id,

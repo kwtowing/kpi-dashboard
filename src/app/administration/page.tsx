@@ -62,6 +62,19 @@ export default function AdministrationPage() {
     load();
   }
 
+  async function applyHoursPerDayToAll(hours: number) {
+    await Promise.all(
+      drivers.map((d) =>
+        fetch("/api/drivers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...d, hours_per_day: hours }),
+        })
+      )
+    );
+    load();
+  }
+
   async function saveTruck(t: Truck) {
     await fetch("/api/trucks-master", {
       method: "POST",
@@ -96,31 +109,34 @@ export default function AdministrationPage() {
       {loading ? (
         <div className="text-sm text-[var(--ink-muted)]">Loading…</div>
       ) : tab === "drivers" ? (
-        <div className="card overflow-hidden">
-          {drivers.length === 0 ? (
-            <div className="px-5 py-10 text-sm text-[var(--ink-muted)] text-center">
-              No drivers yet — import a CAA report to auto-populate driver IDs here.
-            </div>
-          ) : (
-            <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-[var(--ink-muted)] text-xs border-b border-[var(--line)]">
-                  <th className="px-5 py-2 font-normal">Driver ID</th>
-                  <th className="px-5 py-2 font-normal">Name</th>
-                  <th className="px-5 py-2 font-normal">Samsara driver ID</th>
-                  <th className="px-5 py-2 font-normal">Compensation (CAD)</th>
-                  <th className="px-5 py-2 font-normal">Schedule</th>
-                  <th className="px-5 py-2 font-normal">Daily / hourly wage</th>
-                  <th className="px-5 py-2 font-normal">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {drivers.map((d) => (
-                  <DriverRow key={d.driver_id} driver={d} onSave={saveDriver} samsaraDrivers={samsaraDrivers} samsaraConnected={samsaraConnected} />
-                ))}
-              </tbody>
-            </table></div>
-          )}
+        <div className="space-y-3">
+          {drivers.length > 0 && <BulkHoursControl onApply={applyHoursPerDayToAll} />}
+          <div className="card overflow-hidden">
+            {drivers.length === 0 ? (
+              <div className="px-5 py-10 text-sm text-[var(--ink-muted)] text-center">
+                No drivers yet — import a CAA report to auto-populate driver IDs here.
+              </div>
+            ) : (
+              <div className="overflow-x-auto"><table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-[var(--ink-muted)] text-xs border-b border-[var(--line)]">
+                    <th className="px-5 py-2 font-normal">Driver ID</th>
+                    <th className="px-5 py-2 font-normal">Name</th>
+                    <th className="px-5 py-2 font-normal">Samsara driver ID</th>
+                    <th className="px-5 py-2 font-normal">Compensation (CAD)</th>
+                    <th className="px-5 py-2 font-normal">Schedule</th>
+                    <th className="px-5 py-2 font-normal">Daily / hourly wage</th>
+                    <th className="px-5 py-2 font-normal">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {drivers.map((d) => (
+                    <DriverRow key={d.driver_id} driver={d} onSave={saveDriver} samsaraDrivers={samsaraDrivers} samsaraConnected={samsaraConnected} />
+                  ))}
+                </tbody>
+              </table></div>
+            )}
+          </div>
         </div>
       ) : (
         <div className="card overflow-hidden">
@@ -155,6 +171,33 @@ export default function AdministrationPage() {
   );
 }
 
+function BulkHoursControl({ onApply }: { onApply: (hours: number) => Promise<void> }) {
+  const [hours, setHours] = useState("12");
+  const [applying, setApplying] = useState(false);
+
+  return (
+    <div className="card px-5 py-3.5 flex items-center gap-3 flex-wrap">
+      <span className="text-sm text-[var(--ink-muted)]">Set hours/day for every driver:</span>
+      <input
+        value={hours}
+        onChange={(e) => setHours(e.target.value)}
+        className="w-16 border border-[var(--line)] rounded-lg px-2 py-1 text-sm font-mono-num text-center bg-[var(--surface)]"
+      />
+      <button
+        onClick={async () => {
+          setApplying(true);
+          await onApply(Number(hours) || 12);
+          setApplying(false);
+        }}
+        disabled={applying}
+        className="px-3 py-1.5 rounded-full bg-[var(--ink)] text-white text-xs disabled:opacity-50"
+      >
+        {applying ? "Applying…" : "Apply to all drivers"}
+      </button>
+    </div>
+  );
+}
+
 function DriverRow({
   driver,
   onSave,
@@ -171,7 +214,7 @@ function DriverRow({
   const [compType, setCompType] = useState(driver.compensation_type ?? "hourly");
   const [rate, setRate] = useState(driver.hourly_rate?.toString() ?? "");
   const [salary, setSalary] = useState(driver.monthly_salary?.toString() ?? "");
-  const [hoursPerDay, setHoursPerDay] = useState(driver.hours_per_day?.toString() ?? "8");
+  const [hoursPerDay, setHoursPerDay] = useState(driver.hours_per_day?.toString() ?? "12");
   const [daysPerWeek, setDaysPerWeek] = useState(driver.days_per_week?.toString() ?? "5");
   const [dirty, setDirty] = useState(false);
 
