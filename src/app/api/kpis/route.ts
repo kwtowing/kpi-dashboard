@@ -6,6 +6,20 @@ export const dynamic = "force-dynamic";
 const PERIODS = ["day", "week", "month", "year"] as const;
 type Period = (typeof PERIODS)[number];
 
+// A single combined view of every revenue/cost entry, regardless of source:
+// CAA calls (tow_calls.total_cost, always revenue) plus manual entries and
+// CSV imports (transactions). tow_calls is the live source of truth for CAA
+// data — no separate copy is kept in transactions, so a corrected re-import
+// is reflected here immediately.
+const COMBINED_CTE = `
+  WITH combined AS (
+    SELECT entry_date AS d, kind, amount, category FROM transactions
+    UNION ALL
+    SELECT receive_date AS d, 'revenue' AS kind, total_cost AS amount, 'CAA Towing' AS category
+    FROM tow_calls WHERE total_cost IS NOT NULL
+  )
+`;
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const period = (searchParams.get("period") ?? "month") as Period;
@@ -24,12 +38,13 @@ export async function GET(req: NextRequest) {
     // Without one: the most recent N buckets, all time.
     const series = hasRange
       ? await query(
-          `WITH buckets AS (
-             SELECT date_trunc($1, entry_date) AS bucket,
+          `${COMBINED_CTE}
+           , buckets AS (
+             SELECT date_trunc($1, d) AS bucket,
                     SUM(CASE WHEN kind = 'revenue' THEN amount ELSE 0 END) AS revenue,
                     SUM(CASE WHEN kind = 'cost' THEN amount ELSE 0 END) AS cost
-             FROM transactions
-             WHERE entry_date >= $2 AND entry_date <= $3
+             FROM combined
+             WHERE d >= $2 AND d <= $3
              GROUP BY 1
            )
            SELECT bucket, revenue, cost, (revenue - cost) AS profit
@@ -38,11 +53,12 @@ export async function GET(req: NextRequest) {
           [period, from, to]
         )
       : await query(
-          `WITH buckets AS (
-             SELECT date_trunc($1, entry_date) AS bucket,
+          `${COMBINED_CTE}
+           , buckets AS (
+             SELECT date_trunc($1, d) AS bucket,
                     SUM(CASE WHEN kind = 'revenue' THEN amount ELSE 0 END) AS revenue,
                     SUM(CASE WHEN kind = 'cost' THEN amount ELSE 0 END) AS cost
-             FROM transactions
+             FROM combined
              GROUP BY 1
            )
            SELECT bucket, revenue, cost, (revenue - cost) AS profit
@@ -54,7 +70,8 @@ export async function GET(req: NextRequest) {
     if (!hasRange) series.reverse();
 
     // Cost breakdown by category: within the custom range if given,
-    // otherwise the current period (e.g. this month).
+    // otherwise the current period (e.g. this month). Costs only come from
+    // transactions (manual/CSV) — tow_calls has no cost side, only revenue.
     const breakdown = hasRange
       ? await query(
           `SELECT category, SUM(amount) AS amount
@@ -78,20 +95,22 @@ export async function GET(req: NextRequest) {
     // Totals for the KPI cards: within the range if given, else all time.
     const totalsRows = hasRange
       ? await query<{ revenue: string; cost: string; count: string }>(
-          `SELECT
+          `${COMBINED_CTE}
+           SELECT
              COALESCE(SUM(CASE WHEN kind = 'revenue' THEN amount ELSE 0 END), 0) AS revenue,
              COALESCE(SUM(CASE WHEN kind = 'cost' THEN amount ELSE 0 END), 0) AS cost,
              COUNT(*) AS count
-           FROM transactions
-           WHERE entry_date >= $1 AND entry_date <= $2`,
+           FROM combined
+           WHERE d >= $1 AND d <= $2`,
           [from, to]
         )
       : await query<{ revenue: string; cost: string; count: string }>(
-          `SELECT
+          `${COMBINED_CTE}
+           SELECT
              COALESCE(SUM(CASE WHEN kind = 'revenue' THEN amount ELSE 0 END), 0) AS revenue,
              COALESCE(SUM(CASE WHEN kind = 'cost' THEN amount ELSE 0 END), 0) AS cost,
              COUNT(*) AS count
-           FROM transactions`
+           FROM combined`
         );
     const totals = totalsRows[0];
 

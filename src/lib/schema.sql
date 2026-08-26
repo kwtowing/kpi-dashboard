@@ -108,3 +108,11 @@ CREATE TABLE IF NOT EXISTS driver_truck_assignments (
 
 CREATE INDEX IF NOT EXISTS idx_assignments_driver ON driver_truck_assignments (driver_id);
 CREATE INDEX IF NOT EXISTS idx_assignments_truck ON driver_truck_assignments (truck_number);
+
+-- One-time cleanup: earlier versions of the CAA import also wrote a shadow
+-- copy of each call's revenue into `transactions` (category 'CAA Towing').
+-- CAA revenue now comes live from tow_calls only (see /api/kpis), so any
+-- leftover shadow rows would double-count the Executive Dashboard's totals.
+-- Safe to run repeatedly — a no-op once cleaned up, since nothing writes
+-- these rows anymore.
+DELETE FROM transactions WHERE category = 'CAA Towing';

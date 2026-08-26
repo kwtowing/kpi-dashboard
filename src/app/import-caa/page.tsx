@@ -70,7 +70,7 @@ export default function ImportCaaPage() {
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [parseError, setParseError] = useState("");
   const [status, setStatus] = useState<"idle" | "importing" | "done" | "error">("idle");
-  const [result, setResult] = useState<{ inserted: number; skipped: number; errors: string[] } | null>(null);
+  const [result, setResult] = useState<{ inserted: number; updated: number; errors: string[] } | null>(null);
   const [error, setError] = useState("");
 
   function handleFile(file: File) {
@@ -229,8 +229,8 @@ export default function ImportCaaPage() {
 
           {status === "done" && result && (
             <div className="text-sm text-[var(--revenue)]">
-              Imported {result.inserted} calls
-              {result.skipped > 0 && <span className="text-[var(--ink-muted)]"> · {result.skipped} already imported, skipped</span>}.
+              {result.inserted} new call{result.inserted === 1 ? "" : "s"} added
+              {result.updated > 0 && <span className="text-[var(--ink-muted)]"> · {result.updated} existing call{result.updated === 1 ? "" : "s"} refreshed with the latest values</span>}.
               {result.errors.length > 0 && <div className="text-[var(--cost)] mt-1">{result.errors.length} rows had errors.</div>}
             </div>
           )}
