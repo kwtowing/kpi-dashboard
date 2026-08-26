@@ -19,7 +19,7 @@ const GROUPS: Group[] = [
       { href: "/fleet-performance", label: "Fleet Performance", built: true },
       { href: "/drivers", label: "Driver Performance & Disputes", built: true },
       { href: "/trucks", label: "Truck Performance", built: true },
-      { href: "/driver-behaviour", label: "Driver Behaviour", built: false },
+      { href: "/driver-behaviour", label: "Driver Behaviour", built: true },
     ],
   },
   {

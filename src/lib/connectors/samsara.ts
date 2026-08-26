@@ -68,6 +68,65 @@ export async function listDrivers(): Promise<SamsaraDriver[]> {
   const data = (json.data ?? []) as any[];
   return data.map((d) => ({ id: String(d.id), name: d.name, username: d.username }));
 }
+export interface SamsaraSafetyEvent {
+  id: string;
+  time: string;
+  driverId: string | null;
+  driverName: string | null;
+  vehicleId: string | null;
+  vehicleName: string | null;
+  behaviorLabels: string[];
+  severity: string | null;
+  speedMph: number | null;
+  postedSpeedMph: number | null;
+  location: string | null;
+}
+
+// Driver behaviour / safety events (speeding, harsh braking, harsh
+// acceleration, harsh cornering, etc.) within a time window. Samsara's docs
+// for this endpoint have shifted across API versions, so this is written
+// defensively — it extracts whatever shape of driver/vehicle/behavior data
+// is present rather than assuming one exact schema, and surfaces the raw
+// error text on failure so a mismatch is diagnosable rather than silent.
+export async function listSafetyEvents(
+  startTime: string,
+  endTime: string,
+  driverIds?: string[]
+): Promise<SamsaraSafetyEvent[]> {
+  const params = new URLSearchParams({ startTime, endTime });
+  if (driverIds && driverIds.length > 0) {
+    params.set("driverIds", driverIds.join(","));
+  }
+  const res = await fetch(`${BASE}/fleet/safety-events?${params.toString()}`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error(`Samsara API error ${res.status}: ${await res.text()}`);
+  }
+  const json = await res.json();
+  const data = (json.data ?? []) as any[];
+  return data.map((e) => {
+    const labelsRaw = e.behaviorLabels ?? e.eventTypes ?? (e.behaviorLabel ? [e.behaviorLabel] : []);
+    const behaviorLabels: string[] = Array.isArray(labelsRaw)
+      ? labelsRaw.map((b: any) => (typeof b === "string" ? b : b.name ?? b.label ?? JSON.stringify(b)))
+      : [];
+    return {
+      id: String(e.id ?? e.uuid ?? `${e.time}-${e.driver?.id ?? ""}`),
+      time: e.time ?? e.happenedAtTime,
+      driverId: e.driver?.id ? String(e.driver.id) : null,
+      driverName: e.driver?.name ?? null,
+      vehicleId: e.vehicle?.id ? String(e.vehicle.id) : null,
+      vehicleName: e.vehicle?.name ?? null,
+      behaviorLabels,
+      severity: e.severity ?? e.harshEvent?.severity ?? null,
+      speedMph: e.speedingEvent?.speedMph ?? e.harshEvent?.speedAtEventMph ?? null,
+      postedSpeedMph: e.speedingEvent?.postedSpeedMph ?? null,
+      location: e.location?.formattedAddress ?? e.location?.address ?? null,
+    };
+  });
+}
+
 export interface SamsaraAssignment {
   driverId: string;
   driverName: string | null;
