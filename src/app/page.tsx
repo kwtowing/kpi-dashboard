@@ -16,6 +16,7 @@ type KpiResponse = {
   series: { bucket: string; revenue: number; cost: number; profit: number }[];
   breakdown: { category: string; amount: number }[];
   totals: { revenue: number; cost: number; profit: number; count: number };
+  comparison: { revenue: number | null; cost: number | null; profit: number | null } | null;
   projectedNext: number | null;
 };
 
@@ -132,9 +133,27 @@ export default function DashboardPage() {
       ) : (
         <div className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <KpiCard label="Total revenue" value={data.totals.revenue} tone="revenue" />
-            <KpiCard label="Total cost" value={data.totals.cost} tone="cost" />
-            <KpiCard label="Net profit" value={data.totals.profit} tone="accent" />
+            <KpiCard
+              label="Total revenue"
+              value={data.totals.revenue}
+              tone="revenue"
+              deltaPct={data.comparison?.revenue ?? null}
+              deltaGoodDirection="up"
+            />
+            <KpiCard
+              label="Total cost"
+              value={data.totals.cost}
+              tone="cost"
+              deltaPct={data.comparison?.cost ?? null}
+              deltaGoodDirection="down"
+            />
+            <KpiCard
+              label="Net profit"
+              value={data.totals.profit}
+              tone="accent"
+              deltaPct={data.comparison?.profit ?? null}
+              deltaGoodDirection="up"
+            />
             <KpiCard
               label="Projected next period"
               value={data.projectedNext ?? 0}
@@ -161,34 +180,56 @@ function RevenueVsCost({
   series: { bucket: string; revenue: number; cost: number }[];
   period: string;
 }) {
+  const adverb: Record<string, string> = { day: "daily", week: "weekly", month: "monthly", year: "yearly" };
+  const shown = series.slice(-6);
   return (
     <div className="card p-5">
-      <div className="font-display italic text-lg mb-1">Revenue vs. cost</div>
-      <div className="text-xs text-[var(--ink-muted)] mb-4">Last {series.length} {period}ly periods</div>
-      <div className="space-y-2">
-        {series.slice(-6).reverse().map((s) => {
-          const max = Math.max(s.revenue, s.cost, 1);
-          return (
-            <div key={s.bucket} className="text-xs">
-              <div className="flex justify-between mb-1 text-[var(--ink-muted)]">
-                <span>{new Date(s.bucket).toLocaleDateString()}</span>
-              </div>
-              <div className="flex gap-1 h-2 mb-2">
-                <div
-                  className="rounded-full"
-                  style={{ width: `${(s.revenue / max) * 100}%`, background: "var(--revenue)" }}
-                />
-              </div>
-              <div className="flex gap-1 h-2 mb-1">
-                <div
-                  className="rounded-full"
-                  style={{ width: `${(s.cost / max) * 100}%`, background: "var(--cost)" }}
-                />
-              </div>
-            </div>
-          );
-        })}
+      <div className="flex items-center justify-between mb-1">
+        <div className="font-display italic text-lg">Revenue vs. cost</div>
+        <div className="flex items-center gap-3 text-[11px] text-[var(--ink-muted)]">
+          <span className="flex items-center gap-1">
+            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: "var(--revenue)" }} /> Revenue
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: "var(--cost)" }} /> Cost
+          </span>
+        </div>
       </div>
+      <div className="text-xs text-[var(--ink-muted)] mb-4">
+        Last {shown.length} {shown.length === 1 ? adverb[period] ?? period : `${adverb[period] ?? period} periods`}
+      </div>
+      {shown.length === 0 ? (
+        <div className="text-sm text-[var(--ink-muted)] py-10 text-center">No data yet for this view.</div>
+      ) : (
+        <div className="space-y-3">
+          {shown.reverse().map((s) => {
+            const max = Math.max(s.revenue, s.cost, 1);
+            return (
+              <div key={s.bucket}>
+                <div className="flex justify-between mb-1 text-xs text-[var(--ink-muted)]">
+                  <span>{new Date(s.bucket).toLocaleDateString()}</span>
+                  <span className="font-mono-num">
+                    ${s.revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })} / $
+                    {s.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+                <div className="flex gap-1 h-2 mb-1">
+                  <div
+                    className="rounded-full"
+                    style={{ width: `${(s.revenue / max) * 100}%`, background: "var(--revenue)", minWidth: s.revenue > 0 ? "2px" : 0 }}
+                  />
+                </div>
+                <div className="flex gap-1 h-2">
+                  <div
+                    className="rounded-full"
+                    style={{ width: `${(s.cost / max) * 100}%`, background: "var(--cost)", minWidth: s.cost > 0 ? "2px" : 0 }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

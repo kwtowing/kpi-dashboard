@@ -21,17 +21,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "driver_id is required" }, { status: 400 });
     }
     const rows = await query(
-      `INSERT INTO driver_master (driver_id, driver_name, samsara_driver_id, hourly_rate, compensation_type, status)
-       VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'active'))
+      `INSERT INTO driver_master
+         (driver_id, driver_name, samsara_driver_id, hourly_rate, monthly_salary, hours_per_day, days_per_week, compensation_type, status)
+       VALUES ($1, $2, $3, $4, $5, COALESCE($6, 8), COALESCE($7, 5), $8, COALESCE($9, 'active'))
        ON CONFLICT (driver_id) DO UPDATE SET
          driver_name = EXCLUDED.driver_name,
          samsara_driver_id = EXCLUDED.samsara_driver_id,
          hourly_rate = EXCLUDED.hourly_rate,
+         monthly_salary = EXCLUDED.monthly_salary,
+         hours_per_day = EXCLUDED.hours_per_day,
+         days_per_week = EXCLUDED.days_per_week,
          compensation_type = EXCLUDED.compensation_type,
          status = EXCLUDED.status,
          updated_at = now()
        RETURNING *`,
-      [b.driver_id, b.driver_name ?? null, b.samsara_driver_id ?? null, b.hourly_rate ?? null, b.compensation_type ?? "hourly", b.status ?? null]
+      [
+        b.driver_id,
+        b.driver_name ?? null,
+        b.samsara_driver_id ?? null,
+        b.hourly_rate ?? null,
+        b.monthly_salary ?? null,
+        b.hours_per_day ?? null,
+        b.days_per_week ?? null,
+        b.compensation_type ?? "hourly",
+        b.status ?? null,
+      ]
     );
     return NextResponse.json({ ok: true, driver: rows[0] });
   } catch (err: any) {

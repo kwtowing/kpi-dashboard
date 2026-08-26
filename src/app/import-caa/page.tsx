@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import * as XLSX from "xlsx";
 
 // Fixed column layout of the CAA Garage Productivity report (0-indexed,
@@ -72,6 +72,18 @@ export default function ImportCaaPage() {
   const [status, setStatus] = useState<"idle" | "importing" | "done" | "error">("idle");
   const [result, setResult] = useState<{ inserted: number; updated: number; errors: string[] } | null>(null);
   const [error, setError] = useState("");
+  const [history, setHistory] = useState<{ total_calls: number; earliest: string | null; latest: string | null; total_revenue: number } | null>(null);
+
+  const loadHistory = useCallback(() => {
+    fetch("/api/data-history")
+      .then((r) => r.json())
+      .then((j) => setHistory(j.error ? null : j))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
 
   function handleFile(file: File) {
     setFileName(file.name);
@@ -147,6 +159,7 @@ export default function ImportCaaPage() {
       if (!res.ok) throw new Error(json.error ?? "Import failed");
       setResult(json);
       setStatus("done");
+      loadHistory();
     } catch (err: any) {
       setError(err.message);
       setStatus("error");
@@ -158,10 +171,31 @@ export default function ImportCaaPage() {
   return (
     <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-2xl">
       <h1 className="font-display italic text-3xl mb-1">Import CAA productivity report</h1>
-      <p className="text-sm text-[var(--ink-muted)] mb-8">
+      <p className="text-sm text-[var(--ink-muted)] mb-4">
         Upload the .xls export directly — KW Towing Operations Intelligence Portal already knows this report&apos;s layout, so
         there&apos;s nothing to map. Each call&apos;s Total Cost is recorded as revenue.
       </p>
+
+      {history && history.total_calls > 0 && (
+        <div className="card px-5 py-4 mb-8" style={{ borderColor: "var(--accent)" }}>
+          <div className="text-sm font-medium mb-1">Everything imported so far is kept — nothing is ever deleted</div>
+          <p className="text-xs text-[var(--ink-muted)]">
+            <span className="font-mono-num">{history.total_calls.toLocaleString()}</span> calls stored,{" "}
+            {history.earliest && history.latest && (
+              <>
+                spanning <span className="font-mono-num">{history.earliest}</span> to{" "}
+                <span className="font-mono-num">{history.latest}</span>,{" "}
+              </>
+            )}
+            totalling{" "}
+            <span className="font-mono-num">
+              ${history.total_revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </span>{" "}
+            in revenue. Importing a new file only adds new dates or refreshes a call CAA has
+            corrected — every earlier month stays exactly as it was.
+          </p>
+        </div>
+      )}
 
       {rows.length === 0 ? (
         <label className="card flex flex-col items-center justify-center py-16 cursor-pointer border-dashed">

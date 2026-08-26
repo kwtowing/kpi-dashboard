@@ -75,10 +75,18 @@ CREATE TABLE IF NOT EXISTS driver_master (
   phone              TEXT,
   samsara_driver_id  TEXT,
   hourly_rate        NUMERIC(10, 2),
+  monthly_salary     NUMERIC(10, 2),
+  hours_per_day      NUMERIC(4, 2) NOT NULL DEFAULT 8,
+  days_per_week      NUMERIC(3, 1) NOT NULL DEFAULT 5,
   compensation_type  TEXT DEFAULT 'hourly' CHECK (compensation_type IN ('hourly', 'salary', 'commission', 'mixed')),
   created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- For databases created before these existed.
+ALTER TABLE driver_master ADD COLUMN IF NOT EXISTS monthly_salary NUMERIC(10, 2);
+ALTER TABLE driver_master ADD COLUMN IF NOT EXISTS hours_per_day NUMERIC(4, 2) NOT NULL DEFAULT 8;
+ALTER TABLE driver_master ADD COLUMN IF NOT EXISTS days_per_week NUMERIC(3, 1) NOT NULL DEFAULT 5;
 
 CREATE TABLE IF NOT EXISTS truck_master (
   id                 SERIAL PRIMARY KEY,

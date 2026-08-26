@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { wageBreakdown } from "@/lib/wage";
 
 type Driver = {
   driver_id: string;
@@ -8,6 +9,9 @@ type Driver = {
   status: string;
   samsara_driver_id: string | null;
   hourly_rate: number | null;
+  monthly_salary: number | null;
+  hours_per_day: number;
+  days_per_week: number;
   compensation_type: string;
 };
 
@@ -68,7 +72,7 @@ export default function AdministrationPage() {
   }
 
   return (
-    <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-4xl">
+    <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-6xl">
       <h1 className="font-display italic text-3xl mb-1">Administration</h1>
       <p className="text-sm text-[var(--ink-muted)] mb-8">
         Master records for every driver and truck. Names and codes here link CAA calls,
@@ -104,7 +108,9 @@ export default function AdministrationPage() {
                   <th className="px-5 py-2 font-normal">Driver ID</th>
                   <th className="px-5 py-2 font-normal">Name</th>
                   <th className="px-5 py-2 font-normal">Samsara driver ID</th>
-                  <th className="px-5 py-2 font-normal">Hourly rate (CAD)</th>
+                  <th className="px-5 py-2 font-normal">Compensation (CAD)</th>
+                  <th className="px-5 py-2 font-normal">Schedule</th>
+                  <th className="px-5 py-2 font-normal">Daily / hourly wage</th>
                   <th className="px-5 py-2 font-normal">Status</th>
                 </tr>
               </thead>
@@ -162,8 +168,20 @@ function DriverRow({
 }) {
   const [name, setName] = useState(driver.driver_name ?? "");
   const [samsaraId, setSamsaraId] = useState(driver.samsara_driver_id ?? "");
+  const [compType, setCompType] = useState(driver.compensation_type ?? "hourly");
   const [rate, setRate] = useState(driver.hourly_rate?.toString() ?? "");
+  const [salary, setSalary] = useState(driver.monthly_salary?.toString() ?? "");
+  const [hoursPerDay, setHoursPerDay] = useState(driver.hours_per_day?.toString() ?? "8");
+  const [daysPerWeek, setDaysPerWeek] = useState(driver.days_per_week?.toString() ?? "5");
   const [dirty, setDirty] = useState(false);
+
+  const breakdown = wageBreakdown(
+    compType,
+    rate ? Number(rate) : null,
+    salary ? Number(salary) : null,
+    Number(hoursPerDay) || 8,
+    Number(daysPerWeek) || 5
+  );
 
   // If the currently-saved value doesn't match any real Samsara driver ID,
   // flag it — this is exactly what happened with usernames like "Davood32"
@@ -222,21 +240,87 @@ function DriverRow({
         )}
       </td>
       <td className="px-5 py-2">
-        <input
-          value={rate}
-          onChange={(e) => {
-            setRate(e.target.value);
-            setDirty(true);
-          }}
-          placeholder="—"
-          className="w-24 bg-transparent border-b border-transparent focus:border-[var(--line)] outline-none text-sm font-mono-num"
-        />
+        <div className="flex items-center gap-1.5">
+          <select
+            value={compType}
+            onChange={(e) => {
+              setCompType(e.target.value);
+              setDirty(true);
+            }}
+            className="bg-transparent text-xs outline-none text-[var(--ink-muted)]"
+          >
+            <option value="hourly">Hourly</option>
+            <option value="salary">Monthly salary</option>
+          </select>
+          {compType === "salary" ? (
+            <input
+              value={salary}
+              onChange={(e) => {
+                setSalary(e.target.value);
+                setDirty(true);
+              }}
+              placeholder="e.g. 5200"
+              className="w-24 bg-transparent border-b border-transparent focus:border-[var(--line)] outline-none text-sm font-mono-num"
+            />
+          ) : (
+            <input
+              value={rate}
+              onChange={(e) => {
+                setRate(e.target.value);
+                setDirty(true);
+              }}
+              placeholder="e.g. 28"
+              className="w-20 bg-transparent border-b border-transparent focus:border-[var(--line)] outline-none text-sm font-mono-num"
+            />
+          )}
+        </div>
+      </td>
+      <td className="px-5 py-2">
+        <div className="flex items-center gap-1 text-xs text-[var(--ink-muted)]">
+          <input
+            value={hoursPerDay}
+            onChange={(e) => {
+              setHoursPerDay(e.target.value);
+              setDirty(true);
+            }}
+            className="w-9 bg-transparent border-b border-transparent focus:border-[var(--line)] outline-none text-xs font-mono-num text-right"
+          />
+          <span>hr/day ×</span>
+          <input
+            value={daysPerWeek}
+            onChange={(e) => {
+              setDaysPerWeek(e.target.value);
+              setDirty(true);
+            }}
+            className="w-8 bg-transparent border-b border-transparent focus:border-[var(--line)] outline-none text-xs font-mono-num text-right"
+          />
+          <span>day/wk</span>
+        </div>
+      </td>
+      <td className="px-5 py-2 font-mono-num text-xs">
+        {breakdown ? (
+          <div className="text-[var(--ink-muted)]">
+            <div>${breakdown.daily.toFixed(2)}/day</div>
+            <div>${breakdown.hourly.toFixed(2)}/hr</div>
+          </div>
+        ) : (
+          <span className="text-[var(--ink-muted)]">—</span>
+        )}
       </td>
       <td className="px-5 py-2">
         {dirty ? (
           <button
             onClick={() => {
-              onSave({ ...driver, driver_name: name, samsara_driver_id: samsaraId, hourly_rate: rate ? Number(rate) : null });
+              onSave({
+                ...driver,
+                driver_name: name,
+                samsara_driver_id: samsaraId,
+                compensation_type: compType,
+                hourly_rate: compType === "hourly" && rate ? Number(rate) : null,
+                monthly_salary: compType === "salary" && salary ? Number(salary) : null,
+                hours_per_day: Number(hoursPerDay) || 8,
+                days_per_week: Number(daysPerWeek) || 5,
+              });
               setDirty(false);
             }}
             className="text-xs px-3 py-1 rounded-full bg-[var(--ink)] text-white"

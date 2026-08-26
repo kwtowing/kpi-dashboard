@@ -33,7 +33,7 @@ const GROUPS: Group[] = [
     label: "Finance",
     items: [
       { href: "/revenue-cost", label: "Revenue & Cost Analysis", built: true },
-      { href: "/performance-explorer", label: "Performance Explorer", built: false },
+      { href: "/performance-explorer", label: "Performance Explorer", built: true },
       { href: "/rankings", label: "Rankings", built: true },
     ],
   },

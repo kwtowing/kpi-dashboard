@@ -3,6 +3,8 @@ import { query } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+const AVG_DAYS_PER_MONTH = 30.4368; // 365.24 / 12
+
 // Summary + call-level detail for one driver, with optional filters.
 // Required: driver_id. Optional: from, to, truck, payment ('all' | 'paid' | 'zero'), trouble_cd.
 export async function GET(req: NextRequest) {
@@ -54,7 +56,8 @@ export async function GET(req: NextRequest) {
            CASE WHEN re_dt IS NOT NULL AND cl_dt IS NOT NULL AND cl_dt > re_dt
              THEN EXTRACT(EPOCH FROM (cl_dt - re_dt)) / 3600.0
              ELSE 0 END
-         ), 0) AS hours
+         ), 0) AS hours,
+         (MAX(receive_date) - MIN(receive_date) + 1) AS span_days
        FROM tow_calls
        WHERE ${whereClause}`,
       params
@@ -71,20 +74,35 @@ export async function GET(req: NextRequest) {
     );
 
     const driverInfo = await query(
-      `SELECT driver_name, hourly_rate, samsara_driver_id FROM driver_master WHERE driver_id = $1`,
+      `SELECT driver_name, hourly_rate, monthly_salary, compensation_type, samsara_driver_id
+       FROM driver_master WHERE driver_id = $1`,
       [driverId]
     );
 
     const s = summaryRows[0] as any;
     const hours = Number(s.hours);
-    const rate =
-      driverInfo[0]?.hourly_rate !== undefined && driverInfo[0]?.hourly_rate !== null
-        ? Number(driverInfo[0].hourly_rate)
-        : null;
+    const info = driverInfo[0];
+    const isSalary = info?.compensation_type === "salary" && info?.monthly_salary !== null && info?.monthly_salary !== undefined;
+
+    // When a date range is set, prorate salary to that exact range. Otherwise
+    // prorate to the span between this driver's first and last matching call.
+    const spanDays = from && to
+      ? (new Date(to).getTime() - new Date(from).getTime()) / 86400000 + 1
+      : Number(s.span_days) || 1;
+
+    let labourCost: number | null = null;
+    let rate: number | null = null;
+    if (isSalary) {
+      rate = Number(info.monthly_salary);
+      labourCost = rate * (spanDays / AVG_DAYS_PER_MONTH);
+    } else if (info?.hourly_rate !== null && info?.hourly_rate !== undefined) {
+      rate = Number(info.hourly_rate);
+      labourCost = hours * rate;
+    }
 
     return NextResponse.json({
       driver_id: driverId,
-      driver_name: driverInfo[0]?.driver_name ?? null,
+      driver_name: info?.driver_name ?? null,
       filters: { from, to, truck, payment, trouble_cd: troubleCd },
       summary: {
         calls: Number(s.calls),
@@ -94,8 +112,9 @@ export async function GET(req: NextRequest) {
         zero_paid_calls: Number(s.zero_paid_calls),
         trucks_used: Number(s.trucks_used),
         hours: Math.round(hours * 10) / 10,
-        hourly_rate: rate,
-        labour_cost: rate !== null ? Math.round(hours * rate * 100) / 100 : null,
+        compensation_type: info?.compensation_type ?? "hourly",
+        rate,
+        labour_cost: labourCost !== null ? Math.round(labourCost * 100) / 100 : null,
       },
       calls,
     });

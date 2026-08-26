@@ -14,7 +14,8 @@ type Summary = {
   zero_paid_calls: number;
   trucks_used: number;
   hours: number;
-  hourly_rate: number | null;
+  compensation_type: string;
+  rate: number | null;
   labour_cost: number | null;
 };
 
@@ -186,7 +187,15 @@ export default function DriverPerformanceExplorer() {
                           { Metric: "Zero-paid calls", Value: summary.zero_paid_calls },
                           { Metric: "Trucks used", Value: summary.trucks_used },
                           { Metric: "Hours (est.)", Value: summary.hours },
-                          { Metric: "Hourly rate (CAD)", Value: summary.hourly_rate ?? "not set" },
+                          {
+                            Metric: "Compensation",
+                            Value:
+                              summary.rate !== null
+                                ? summary.compensation_type === "salary"
+                                  ? `$${summary.rate}/month`
+                                  : `$${summary.rate}/hour`
+                                : "not set",
+                          },
                           { Metric: "Labour cost (CAD)", Value: summary.labour_cost ?? "not set" },
                           { Metric: "Date range", Value: range.from && range.to ? `${range.from} to ${range.to}` : "All time" },
                           { Metric: "Truck filter", Value: truck || "All trucks" },
