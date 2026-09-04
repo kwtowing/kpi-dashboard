@@ -40,7 +40,7 @@ const GROUPS: Group[] = [
   {
     label: "Operations",
     items: [
-      { href: "/alerts", label: "Alerts", built: false },
+      { href: "/alerts", label: "Alerts", built: true },
       { href: "/reports", label: "Reports", built: false },
     ],
   },

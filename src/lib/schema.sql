@@ -124,3 +124,118 @@ CREATE INDEX IF NOT EXISTS idx_assignments_truck ON driver_truck_assignments (tr
 -- Safe to run repeatedly — a no-op once cleaned up, since nothing writes
 -- these rows anymore.
 DELETE FROM transactions WHERE category = 'CAA Towing';
+
+-- ============================================================
+-- Phase 5: Alerts & Reporting
+-- ============================================================
+-- Keyed by truck_number / driver_id (TEXT), the same natural keys used by
+-- driver_truck_assignments, rather than the numeric ids — consistent with
+-- how the rest of the app already joins trucks and drivers.
+
+CREATE TABLE IF NOT EXISTS alert_threshold_defaults (
+  id                SERIAL PRIMARY KEY,
+  alert_type        TEXT NOT NULL UNIQUE CHECK (alert_type IN
+                       ('speeding', 'stunt_driving', 'excessive_idle', 'harsh_braking', 'harsh_acceleration', 'harsh_cornering')),
+  threshold_value   NUMERIC,              -- NULL for stunt_driving (fixed by law) and the harsh_* on/off types
+  unit              TEXT,                 -- 'km_h', 'minutes', NULL for on/off types
+  grace_seconds     INTEGER NOT NULL DEFAULT 0,  -- debounce window before an alert opens
+  is_active         BOOLEAN NOT NULL DEFAULT TRUE,
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_by        TEXT
+);
+
+CREATE TABLE IF NOT EXISTS alert_threshold_overrides (
+  id                SERIAL PRIMARY KEY,
+  scope             TEXT NOT NULL CHECK (scope IN ('truck', 'driver')),
+  truck_number      TEXT REFERENCES truck_master(truck_number) ON DELETE CASCADE,
+  driver_id         TEXT REFERENCES driver_master(driver_id) ON DELETE CASCADE,
+  alert_type        TEXT NOT NULL CHECK (alert_type IN
+                       ('speeding', 'stunt_driving', 'excessive_idle', 'harsh_braking', 'harsh_acceleration', 'harsh_cornering')),
+  threshold_value   NUMERIC,              -- for stunt_driving, may only be stricter (lower over-limit) than the legal minimum
+  unit              TEXT,
+  is_active         BOOLEAN NOT NULL DEFAULT TRUE,
+  effective_from    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  effective_to      TIMESTAMPTZ,
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_by        TEXT,
+  CONSTRAINT one_scope_target CHECK (
+    (scope = 'truck' AND truck_number IS NOT NULL AND driver_id IS NULL) OR
+    (scope = 'driver' AND driver_id IS NOT NULL AND truck_number IS NULL)
+  )
+);
+CREATE INDEX IF NOT EXISTS idx_overrides_lookup ON alert_threshold_overrides (alert_type, truck_number, driver_id) WHERE is_active = TRUE;
+
+CREATE TABLE IF NOT EXISTS alert_history (
+  id                    SERIAL PRIMARY KEY,
+  alert_type            TEXT NOT NULL,
+  truck_number          TEXT REFERENCES truck_master(truck_number),
+  driver_id             TEXT REFERENCES driver_master(driver_id),
+  threshold_value       NUMERIC,
+  threshold_source      TEXT NOT NULL,    -- 'driver' | 'truck' | 'global' | 'legal'
+  observed_value        NUMERIC,
+  severity              TEXT NOT NULL DEFAULT 'normal' CHECK (severity IN ('normal', 'high')),
+  status                TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved', 'acknowledged', 'dismissed')),
+  opened_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+  resolved_at           TIMESTAMPTZ,
+  acknowledged_by       TEXT,
+  acknowledged_at       TIMESTAMPTZ,
+  notes                 TEXT,
+  notification_sent     BOOLEAN NOT NULL DEFAULT FALSE,
+  notification_sent_at  TIMESTAMPTZ,
+  -- The Samsara safety-event id (or a synthesized id for idle-duration
+  -- alerts) this alert was raised from, so re-running the evaluator on an
+  -- overlapping poll window never opens the same alert twice.
+  external_event_id     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_alert_history_truck_time ON alert_history (truck_number, opened_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alert_history_status ON alert_history (status);
+-- Note: keyed on (alert_type, external_event_id) only, not truck_number —
+-- a Samsara event id is already globally unique, and Postgres unique
+-- indexes never treat two NULL truck_numbers as duplicates of each other,
+-- which would defeat dedup for alerts whose vehicle->truck match failed.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_alert_history_dedupe ON alert_history (alert_type, external_event_id) WHERE external_event_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS notification_rules (
+  id                  SERIAL PRIMARY KEY,
+  alert_type          TEXT NOT NULL UNIQUE,
+  recipient_emails    TEXT[] NOT NULL DEFAULT '{}',
+  throttle_minutes    INTEGER NOT NULL DEFAULT 15,  -- 0 for stunt_driving: every occurrence notifies
+  is_active           BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Samsara's vehicle-stats endpoint is a snapshot (current engine state),
+-- not a duration — this tracks how long a truck has continuously been in
+-- its current state so "excessive idle minutes" can be measured across
+-- polling ticks.
+CREATE TABLE IF NOT EXISTS truck_engine_state (
+  truck_number  TEXT PRIMARY KEY REFERENCES truck_master(truck_number) ON DELETE CASCADE,
+  engine_state  TEXT NOT NULL,
+  since         TIMESTAMPTZ NOT NULL,
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Seed global defaults and notification rules (safe to re-run — only fills
+-- in rows that don't exist yet). Stunt driving's threshold is fixed by
+-- Ontario HTA s.172, and harsh_acceleration/harsh_cornering start inactive
+-- since they depend on Samsara plan coverage not yet confirmed.
+INSERT INTO alert_threshold_defaults (alert_type, threshold_value, unit, grace_seconds, is_active)
+VALUES
+  ('speeding', 15, 'km_h', 30, TRUE),
+  ('stunt_driving', NULL, NULL, 0, TRUE),
+  ('excessive_idle', 15, 'minutes', 0, TRUE),
+  ('harsh_braking', NULL, NULL, 0, TRUE),
+  ('harsh_acceleration', NULL, NULL, 0, FALSE),
+  ('harsh_cornering', NULL, NULL, 0, FALSE)
+ON CONFLICT (alert_type) DO NOTHING;
+
+INSERT INTO notification_rules (alert_type, recipient_emails, throttle_minutes, is_active)
+VALUES
+  ('speeding', '{}', 15, FALSE),
+  ('stunt_driving', '{}', 0, FALSE),
+  ('excessive_idle', '{}', 15, FALSE),
+  ('harsh_braking', '{}', 15, FALSE),
+  ('harsh_acceleration', '{}', 15, FALSE),
+  ('harsh_cornering', '{}', 15, FALSE)
+ON CONFLICT (alert_type) DO NOTHING;
