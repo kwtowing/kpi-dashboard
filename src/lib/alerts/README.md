@@ -8,12 +8,27 @@ driver override → truck override → global default (see
 
 ## How it runs
 
-`evaluateAlerts()` (`src/lib/alerts/evaluate.ts`) is triggered by a Vercel
-Cron hitting `GET /api/alerts/evaluate` every 15 minutes (see
-`vercel.json`) — the Alerts page's "Run evaluation now" button calls the
-same endpoint (`POST`) for on-demand testing. Vercel Cron itself only runs
-on paid plans more often than once a day; adjust the schedule to match
-your plan.
+`evaluateAlerts()` (`src/lib/alerts/evaluate.ts`) is triggered by hitting
+`/api/alerts/evaluate` — the Alerts page's "Run evaluation now" button
+calls it (`POST`) for on-demand testing.
+
+This account's Vercel team is on the **Hobby plan**, which caps Vercel's
+own Cron Jobs at once per day — far too coarse for speeding/idle/stunt
+alerts. So there are two schedules layered together:
+
+- `vercel.json` still registers a daily Vercel Cron (`GET`, once at
+  12:00 UTC) as a fallback that needs no other setup.
+- `.github/workflows/alerts-evaluate.yml` runs every 15 minutes via
+  GitHub Actions, `POST`ing to the deployed app's public endpoint — this
+  is the one actually doing the frequent polling. It needs:
+  - A repository secret **`CRON_SECRET`** (Settings → Secrets and
+    variables → Actions → New repository secret) matching the
+    `CRON_SECRET` env var set in Vercel.
+  - Optionally a repository variable **`APP_BASE_URL`** if the
+    production URL is ever not `https://kpi-dashboard-kw14.vercel.app`.
+
+If you later upgrade to Vercel Pro, the `vercel.json` schedule can be
+tightened instead and the GitHub Actions workflow disabled.
 
 ## Required environment variables
 
