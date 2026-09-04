@@ -226,8 +226,11 @@ export default function DriverBehaviourPage() {
           Administration
         </a>{" "}
         appear here by name — otherwise events show their raw Samsara driver ID. Configurable
-        alert thresholds and email notifications are a separate, later build (the &quot;Alerts&quot;
-        page).
+        alert thresholds, email notifications, and the alert history log live on the{" "}
+        <a href="/alerts" className="underline">
+          Alerts
+        </a>{" "}
+        page.
       </p>
     </div>
   );

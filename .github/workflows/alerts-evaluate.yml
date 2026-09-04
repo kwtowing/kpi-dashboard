@@ -1,0 +1,23 @@
+name: Alerts evaluation
+
+# Vercel's own Cron Jobs are capped at once/day on the Hobby plan, which is
+# too coarse for speeding/stunt-driving/idle alerts. This hits the deployed
+# app's public endpoint on a much tighter schedule instead — the app itself
+# still runs the once-daily Vercel Cron in vercel.json as a fallback.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger /api/alerts/evaluate
+        env:
+          APP_BASE_URL: ${{ vars.APP_BASE_URL || 'https://kpi-dashboard-kw14.vercel.app' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl -sS -X POST "$APP_BASE_URL/api/alerts/evaluate" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            --fail-with-body
