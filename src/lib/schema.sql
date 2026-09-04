@@ -218,17 +218,23 @@ CREATE TABLE IF NOT EXISTS truck_engine_state (
 
 -- Seed global defaults and notification rules (safe to re-run — only fills
 -- in rows that don't exist yet). Stunt driving's threshold is fixed by
--- Ontario HTA s.172, and harsh_acceleration/harsh_cornering start inactive
--- since they depend on Samsara plan coverage not yet confirmed.
+-- Ontario HTA s.172. The Samsara plan has been confirmed to cover harsh
+-- acceleration/cornering events (and posted-speed-limit data), so those
+-- alert types are active from the start, same as harsh braking.
 INSERT INTO alert_threshold_defaults (alert_type, threshold_value, unit, grace_seconds, is_active)
 VALUES
   ('speeding', 15, 'km_h', 30, TRUE),
   ('stunt_driving', NULL, NULL, 0, TRUE),
   ('excessive_idle', 15, 'minutes', 0, TRUE),
   ('harsh_braking', NULL, NULL, 0, TRUE),
-  ('harsh_acceleration', NULL, NULL, 0, FALSE),
-  ('harsh_cornering', NULL, NULL, 0, FALSE)
+  ('harsh_acceleration', NULL, NULL, 0, TRUE),
+  ('harsh_cornering', NULL, NULL, 0, TRUE)
 ON CONFLICT (alert_type) DO NOTHING;
+
+-- Backfill for the (short) window before this was confirmed: flip these
+-- two on for anyone who already ran the earlier version of this schema.
+UPDATE alert_threshold_defaults SET is_active = TRUE, updated_at = now()
+WHERE alert_type IN ('harsh_acceleration', 'harsh_cornering') AND is_active = FALSE;
 
 INSERT INTO notification_rules (alert_type, recipient_emails, throttle_minutes, is_active)
 VALUES

@@ -33,13 +33,15 @@ Until `EMAIL_PROVIDER` is set, alerts still evaluate and log to
 notification rule also has its own on/off toggle in the Alerts UI, off by
 default).
 
-## Known gaps (see "Open items" in the spec)
+## Samsara plan coverage
 
-- **Posted speed limits** for stunt-driving detection come only from
-  Samsara's own safety-event feed (`postedSpeedMph`), when the connected
-  plan provides it. There's no per-GPS-point posted-limit lookup — if a
-  speeding event doesn't carry a posted limit, only the flat
-  "speed exceeds 150 km/h" clause can be evaluated for that event.
-- **Harsh acceleration / cornering** default to inactive in
-  `alert_threshold_defaults` until Samsara plan coverage is confirmed —
-  flip `is_active` in the Thresholds tab once confirmed.
+Confirmed: the connected Samsara plan provides posted-speed-limit data on
+speeding events and harsh acceleration/cornering events, alongside harsh
+braking. `harsh_acceleration` and `harsh_cornering` are therefore active
+by default in `alert_threshold_defaults`, the same as `harsh_braking`.
+
+Posted speed limits for stunt-driving detection come from Samsara's
+safety-event feed itself (`postedSpeedMph` on a speeding event) — there's
+still no separate per-GPS-point posted-limit lookup, so on the rare event
+where a speeding event doesn't carry a posted limit, only the flat
+"speed exceeds 150 km/h" clause can be evaluated for that one event.

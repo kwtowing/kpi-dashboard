@@ -9,11 +9,11 @@
 // truck_engine_state tracker, since that endpoint reports current engine
 // state, not a running duration.
 //
-// Posted-speed-limit data for stunt driving comes only from a Samsara
-// speeding event's own postedSpeedMph field (see the "Open items" note in
-// docs/phase5-alerts-spec-v2.md — a per-GPS-point posted-limit lookup
-// would need a separate provider and hasn't been confirmed). When it's
-// absent, only the flat "speed exceeds 150 km/h" clause can be evaluated.
+// Posted-speed-limit data for stunt driving comes from a Samsara speeding
+// event's own postedSpeedMph field — confirmed available on the connected
+// plan, same as the harsh acceleration/cornering events used below. On the
+// rare event that doesn't carry a posted limit, only the flat "speed
+// exceeds 150 km/h" clause can be evaluated for it.
 
 import { query } from "@/lib/db";
 import {
