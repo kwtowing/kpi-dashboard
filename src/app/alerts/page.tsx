@@ -104,6 +104,16 @@ function unitForAlertType(alertType: string): string | null {
 
 export default function AlertsPage() {
   const [tab, setTab] = useState<"history" | "thresholds" | "rules">("history");
+  const [tablesReady, setTablesReady] = useState<boolean | null>(null);
+
+  const checkReady = useCallback(async () => {
+    const json = await fetch("/api/alerts/thresholds").then((r) => r.json());
+    setTablesReady(!(typeof json.error === "string" && json.error.includes("does not exist")));
+  }, []);
+
+  useEffect(() => {
+    checkReady();
+  }, [checkReady]);
 
   return (
     <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-6xl">
@@ -113,23 +123,71 @@ export default function AlertsPage() {
         evaluated from live Samsara telemetry, with configurable thresholds and email notifications.
       </p>
 
-      <div className="inline-flex bg-[var(--surface)] border border-[var(--line)] rounded-full p-1 mb-6">
-        {(["history", "thresholds", "rules"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-4 py-1.5 rounded-full text-sm transition-colors capitalize ${
-              tab === t ? "bg-[var(--ink)] text-white" : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
-            }`}
-          >
-            {t === "history" ? "Alert history" : t === "thresholds" ? "Thresholds" : "Notification rules"}
-          </button>
-        ))}
-      </div>
+      {tablesReady === false ? (
+        <AlertsSetupBanner onReady={() => setTablesReady(true)} />
+      ) : tablesReady === null ? (
+        <div className="text-sm text-[var(--ink-muted)]">Loading…</div>
+      ) : (
+        <>
+          <div className="inline-flex bg-[var(--surface)] border border-[var(--line)] rounded-full p-1 mb-6">
+            {(["history", "thresholds", "rules"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`px-4 py-1.5 rounded-full text-sm transition-colors capitalize ${
+                  tab === t ? "bg-[var(--ink)] text-white" : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                }`}
+              >
+                {t === "history" ? "Alert history" : t === "thresholds" ? "Thresholds" : "Notification rules"}
+              </button>
+            ))}
+          </div>
 
-      {tab === "history" && <HistoryTab />}
-      {tab === "thresholds" && <ThresholdsTab />}
-      {tab === "rules" && <RulesTab />}
+          {tab === "history" && <HistoryTab />}
+          {tab === "thresholds" && <ThresholdsTab />}
+          {tab === "rules" && <RulesTab />}
+        </>
+      )}
+    </div>
+  );
+}
+
+function AlertsSetupBanner({ onReady }: { onReady: () => void }) {
+  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [error, setError] = useState("");
+
+  async function runSetup() {
+    setStatus("loading");
+    try {
+      const res = await fetch("/api/setup", { method: "POST" });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error ?? "Setup failed");
+      onReady();
+    } catch (err: any) {
+      setStatus("error");
+      setError(err.message);
+    }
+  }
+
+  return (
+    <div className="card px-5 py-5 max-w-xl">
+      <div className="text-sm font-medium mb-1.5">One step left for Alerts</div>
+      <p className="text-xs text-[var(--ink-muted)] leading-relaxed mb-4">
+        The rest of the app is already set up — Alerts just needs its own database tables created.
+        This is safe to run any time and only needs to happen once.
+      </p>
+      <button
+        onClick={runSetup}
+        disabled={status === "loading"}
+        className="px-4 py-2 rounded-full bg-[var(--ink)] text-white text-sm disabled:opacity-50"
+      >
+        {status === "loading" ? "Setting up…" : "Set up alert tables"}
+      </button>
+      {status === "error" && (
+        <div className="mt-3 text-xs" style={{ color: "var(--cost)" }}>
+          {error}
+        </div>
+      )}
     </div>
   );
 }
