@@ -40,3 +40,17 @@ body {
 ::selection {
   background: var(--accent-soft);
 }
+
+/* Printing / "Save as PDF" from the Reports page: hide navigation and controls. */
+@media print {
+  aside,
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #ffffff;
+  }
+  .card {
+    break-inside: avoid;
+  }
+}

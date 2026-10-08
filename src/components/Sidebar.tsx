@@ -41,7 +41,7 @@ const GROUPS: Group[] = [
     label: "Operations",
     items: [
       { href: "/alerts", label: "Alerts", built: false },
-      { href: "/reports", label: "Reports", built: false },
+      { href: "/reports", label: "Reports", built: true },
     ],
   },
   {
@@ -67,7 +67,7 @@ export default function Sidebar() {
   return (
     <>
       {/* Mobile top bar */}
-      <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 py-2 border-b border-[var(--line)] bg-[var(--surface)]">
+      <div className="no-print lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 py-2 border-b border-[var(--line)] bg-[var(--surface)]">
         <Image src="/kw-logo.png" alt="KW Towing" width={1223} height={644} className="h-9 w-auto" priority />
         <button
           onClick={() => setOpen(true)}
