@@ -5,6 +5,7 @@ import PeriodSelector from "@/components/PeriodSelector";
 import KpiCard from "@/components/KpiCard";
 import TrajectoryChart from "@/components/TrajectoryChart";
 import CostBreakdown from "@/components/CostBreakdown";
+import DriverWeeklyKm from "@/components/DriverWeeklyKm";
 import SetupBanner from "@/components/SetupBanner";
 import DateRangeFilter, { DateRange } from "@/components/DateRangeFilter";
 import ExportButton from "@/components/ExportButton";
@@ -163,10 +164,11 @@ export default function DashboardPage() {
 
           <TrajectoryChart range={range} />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <CostBreakdown breakdown={data.breakdown} />
-            <RevenueVsCost series={data.series} period={data.period} />
-          </div>
+          <CostBreakdown period={period} range={range} />
+
+          <DriverWeeklyKm />
+
+          <RevenueVsCost series={data.series} period={data.period} />
         </div>
       )}
     </div>
@@ -181,7 +183,18 @@ function RevenueVsCost({
   period: string;
 }) {
   const adverb: Record<string, string> = { day: "daily", week: "weekly", month: "monthly", year: "yearly" };
-  const shown = series.slice(-6);
+  const shown = series
+    .slice(-6)
+    .map((s) => ({ ...s, revenue: Number(s.revenue), cost: Number(s.cost) }));
+  // Buckets are dates stored at midnight UTC; format them in UTC so a month
+  // starting Oct 1 is not shown as Sep 30 in North American time zones.
+  const bucketLabel = (bucket: string) => {
+    const d = new Date(bucket);
+    if (period === "month") return d.toLocaleDateString(undefined, { month: "short", year: "numeric", timeZone: "UTC" });
+    if (period === "year") return String(d.getUTCFullYear());
+    if (period === "week") return `Week of ${d.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" })}`;
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+  };
   return (
     <div className="card p-5">
       <div className="flex items-center justify-between mb-1">
@@ -207,7 +220,7 @@ function RevenueVsCost({
             return (
               <div key={s.bucket}>
                 <div className="flex justify-between mb-1 text-xs text-[var(--ink-muted)]">
-                  <span>{new Date(s.bucket).toLocaleDateString()}</span>
+                  <span>{bucketLabel(s.bucket)}</span>
                   <span className="font-mono-num">
                     ${s.revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })} / $
                     {s.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
