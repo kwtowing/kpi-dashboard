@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
       const conditions = [...filterConds, `receive_date = $${filterParams.length + 1}`, `driver_id IS NOT NULL`];
       const params = [...filterParams, day];
       const rows = await query(
-        `SELECT driver_id AS label, COUNT(*) AS calls, COALESCE(SUM(total_cost),0) AS revenue,
+        `SELECT driver_id AS label, (SELECT dm.driver_name FROM driver_master dm WHERE dm.driver_id = tow_calls.driver_id) AS driver_name, COUNT(*) AS calls, COALESCE(SUM(total_cost),0) AS revenue,
                 COALESCE(SUM(towed_kms_paid),0) AS km_paid, COUNT(*) FILTER (WHERE total_cost = 0) AS zero_paid
          FROM tow_calls WHERE ${conditions.join(" AND ")}
          GROUP BY driver_id ORDER BY revenue DESC`,

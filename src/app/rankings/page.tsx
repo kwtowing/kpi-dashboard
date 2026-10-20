@@ -10,7 +10,7 @@ type Row = {
   revenue_per_km: number | null;
   zero_paid_calls: number;
 };
-type DriverRow = Row & { driver_id: string };
+type DriverRow = Row & { driver_id: string; driver_name?: string | null };
 type TruckRow = Row & { truck: string };
 
 type SortKey = "revenue" | "calls" | "revenue_per_km" | "zero_paid_calls";
@@ -88,7 +88,7 @@ export default function RankingsPage() {
               name: tab === "drivers" ? "Driver rankings" : "Truck rankings",
               rows: sorted.map((r, i) => ({
                 Rank: i + 1,
-                [tab === "drivers" ? "Driver" : "Truck"]: "driver_id" in r ? r.driver_id : r.truck,
+                [tab === "drivers" ? "Driver" : "Truck"]: "driver_id" in r ? r.driver_name || r.driver_id : r.truck,
                 Calls: r.calls,
                 "Revenue (CAD)": r.revenue,
                 "Revenue/km (CAD)": r.revenue_per_km ?? "",
@@ -122,7 +122,7 @@ export default function RankingsPage() {
               {sorted.map((r, i) => (
                 <tr key={"driver_id" in r ? r.driver_id : r.truck} className="border-t border-[var(--line)]">
                   <td className="px-5 py-2.5 font-mono-num text-xs text-[var(--ink-muted)]">{i + 1}</td>
-                  <td className="px-5 py-2.5 font-medium">{"driver_id" in r ? r.driver_id : r.truck}</td>
+                  <td className="px-5 py-2.5 font-medium">{"driver_id" in r ? r.driver_name || r.driver_id : r.truck}</td>
                   <td className="px-5 py-2.5 font-mono-num">{r.calls}</td>
                   <td className="px-5 py-2.5 font-mono-num" style={{ color: "var(--revenue)" }}>
                     ${fmt(r.revenue)}

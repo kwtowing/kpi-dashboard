@@ -8,6 +8,7 @@ import ExportButton from "@/components/ExportButton";
 
 type DriverRow = {
   driver_id: string;
+  driver_name?: string | null;
   bucket: string;
   call_count: number;
   km_paid: number;
@@ -22,6 +23,7 @@ type FlaggedCall = {
   garage: string | null;
   truck: string | null;
   driver_id: string | null;
+  driver_name?: string | null;
   trouble_cd: string | null;
   club_code: string | null;
   om_mileage: number | null;
@@ -94,7 +96,7 @@ export default function DriversPage() {
               name: "Driver breakdown",
               rows: rows.map((r) => ({
                 Period: new Date(r.bucket).toLocaleDateString(),
-                Driver: r.driver_id,
+                Driver: r.driver_name || r.driver_id,
                 Calls: r.call_count,
                 "KM paid": r.km_paid,
                 "Total cost (CAD)": r.total_cost,
@@ -107,7 +109,7 @@ export default function DriversPage() {
                 Date: c.receive_date,
                 "Call #": c.call_no,
                 Garage: c.garage ?? "",
-                Driver: c.driver_id ?? "",
+                Driver: c.driver_name || c.driver_id || "",
                 Truck: c.truck ?? "",
                 "Trouble code": c.trouble_cd ?? "",
                 "KM towed": c.towed_kms ?? "",
@@ -168,7 +170,7 @@ export default function DriversPage() {
                       <td className="px-5 py-2.5 font-mono-num text-xs text-[var(--ink-muted)]">
                         {new Date(r.bucket).toLocaleDateString()}
                       </td>
-                      <td className="px-5 py-2.5">{r.driver_id}</td>
+                      <td className="px-5 py-2.5">{r.driver_name || r.driver_id}</td>
                       <td className="px-5 py-2.5 font-mono-num">{r.call_count}</td>
                       <td className="px-5 py-2.5 font-mono-num">{Number(r.km_paid).toLocaleString()}</td>
                       <td className="px-5 py-2.5 font-mono-num" style={{ color: "var(--revenue)" }}>
@@ -216,7 +218,7 @@ export default function DriversPage() {
                       <td className="px-5 py-2.5 font-mono-num text-xs">{c.receive_date}</td>
                       <td className="px-5 py-2.5 font-mono-num">{c.call_no}</td>
                       <td className="px-5 py-2.5">{c.garage ?? "—"}</td>
-                      <td className="px-5 py-2.5">{c.driver_id ?? "—"}</td>
+                      <td className="px-5 py-2.5">{c.driver_name || c.driver_id || "—"}</td>
                       <td className="px-5 py-2.5">{c.trouble_cd ?? "—"}</td>
                       <td className="px-5 py-2.5 font-mono-num">{c.towed_kms ?? "—"}</td>
                     </tr>

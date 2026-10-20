@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
         ? await query(
             `SELECT
                driver_id,
+               (SELECT dm.driver_name FROM driver_master dm WHERE dm.driver_id = tow_calls.driver_id) AS driver_name,
                date_trunc($1, receive_date) AS bucket,
                COUNT(*) AS call_count,
                COALESCE(SUM(towed_kms_paid), 0) AS km_paid,
@@ -36,6 +37,7 @@ export async function GET(req: NextRequest) {
         : await query(
             `SELECT
                driver_id,
+               (SELECT dm.driver_name FROM driver_master dm WHERE dm.driver_id = tow_calls.driver_id) AS driver_name,
                date_trunc($1, receive_date) AS bucket,
                COUNT(*) AS call_count,
                COALESCE(SUM(towed_kms_paid), 0) AS km_paid,

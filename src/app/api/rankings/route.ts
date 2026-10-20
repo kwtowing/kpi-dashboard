@@ -8,6 +8,7 @@ export async function GET() {
     const driverRankings = await query(
       `SELECT
          driver_id,
+         (SELECT dm.driver_name FROM driver_master dm WHERE dm.driver_id = tow_calls.driver_id) AS driver_name,
          COUNT(*) AS calls,
          COALESCE(SUM(total_cost), 0) AS revenue,
          COALESCE(SUM(towed_kms_paid), 0) AS km_paid,

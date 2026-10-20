@@ -41,7 +41,7 @@ function TruckRowExpandable({
   connected: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const [breakdown, setBreakdown] = useState<{ driver_id: string; calls: number; revenue: number; km_paid: number }[] | null>(null);
+  const [breakdown, setBreakdown] = useState<{ driver_id: string; driver_name?: string | null; calls: number; revenue: number; km_paid: number }[] | null>(null);
 
   function toggle() {
     const next = !open;
@@ -105,7 +105,7 @@ function TruckRowExpandable({
                 <tbody>
                   {breakdown.map((d) => (
                     <tr key={d.driver_id} className="border-t border-[var(--line)]">
-                      <td className="py-1.5">{d.driver_id}</td>
+                      <td className="py-1.5">{d.driver_name || d.driver_id}</td>
                       <td className="py-1.5 font-mono-num">{d.calls}</td>
                       <td className="py-1.5 font-mono-num">{Number(d.km_paid).toLocaleString()}</td>
                       <td className="py-1.5 font-mono-num" style={{ color: "var(--revenue)" }}>

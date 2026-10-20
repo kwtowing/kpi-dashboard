@@ -14,7 +14,7 @@ type Selection = {
 
 const EMPTY: Selection = { year: null, month: null, week: null, day: null, driver: null, truck: null };
 
-type Row = { label: string; calls: number; revenue: number; km_paid: number; zero_paid: number };
+type Row = { label: string; driver_name?: string | null; calls: number; revenue: number; km_paid: number; zero_paid: number };
 type CallRow = {
   id: number;
   call_no: string;
@@ -49,6 +49,8 @@ export default function PerformanceExplorerPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [calls, setCalls] = useState<CallRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // Name of the driver currently drilled into, for the breadcrumb.
+  const [driverName, setDriverName] = useState<string | null>(null);
 
   const load = useCallback(async (sel: Selection, pay: string, code: string) => {
     setLoading(true);
@@ -84,7 +86,10 @@ export default function PerformanceExplorerPage() {
     else if (level === "month") setSelection((s) => ({ ...s, month: String(new Date(rawLabel).getUTCMonth() + 1) }));
     else if (level === "week") setSelection((s) => ({ ...s, week: rawLabel.slice(0, 10) }));
     else if (level === "day") setSelection((s) => ({ ...s, day: rawLabel.slice(0, 10) }));
-    else if (level === "driver") setSelection((s) => ({ ...s, driver: rawLabel }));
+    else if (level === "driver") {
+      setDriverName(rows.find((r) => r.label === rawLabel)?.driver_name ?? null);
+      setSelection((s) => ({ ...s, driver: rawLabel }));
+    }
     else if (level === "truck") setSelection((s) => ({ ...s, truck: rawLabel }));
   }
 
@@ -100,7 +105,7 @@ export default function PerformanceExplorerPage() {
   if (selection.month) crumbs.push({ label: MONTH_NAMES[Number(selection.month) - 1], depth: 2 });
   if (selection.week) crumbs.push({ label: `Week of ${new Date(selection.week).toLocaleDateString()}`, depth: 3 });
   if (selection.day) crumbs.push({ label: new Date(selection.day).toLocaleDateString(), depth: 4 });
-  if (selection.driver) crumbs.push({ label: selection.driver, depth: 5 });
+  if (selection.driver) crumbs.push({ label: driverName || selection.driver, depth: 5 });
   if (selection.truck) crumbs.push({ label: selection.truck, depth: 6 });
 
   const levelLabel: Record<string, string> = {
@@ -154,7 +159,7 @@ export default function PerformanceExplorerPage() {
               : {
                   name: levelLabel[level] ?? "Breakdown",
                   rows: rows.map((r) => ({
-                    [levelLabel[level]]: labelFor(level, r.label),
+                    [levelLabel[level]]: level === "driver" && r.driver_name ? r.driver_name : labelFor(level, r.label),
                     Calls: r.calls,
                     "Revenue (CAD)": r.revenue,
                     "KM paid": r.km_paid,
@@ -252,7 +257,7 @@ export default function PerformanceExplorerPage() {
                     onClick={() => drillInto(r.label)}
                     className="border-t border-[var(--line)] cursor-pointer hover:bg-[var(--bg)]"
                   >
-                    <td className="px-5 py-2.5 font-medium">{labelFor(level, r.label)}</td>
+                    <td className="px-5 py-2.5 font-medium">{level === "driver" && r.driver_name ? r.driver_name : labelFor(level, r.label)}</td>
                     <td className="px-5 py-2.5 font-mono-num">{r.calls}</td>
                     <td className="px-5 py-2.5 font-mono-num" style={{ color: "var(--revenue)" }}>
                       ${fmt(r.revenue)}

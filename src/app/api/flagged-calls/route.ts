@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
     const rows =
       from && to
         ? await query(
-            `SELECT id, call_no, receive_date, garage, truck, driver_id, trouble_cd,
+            `SELECT id, call_no, receive_date, garage, truck, driver_id,
+                    (SELECT dm.driver_name FROM driver_master dm WHERE dm.driver_id = tow_calls.driver_id) AS driver_name, trouble_cd,
                     club_code, om_mileage, towed_kms_paid, towed_kms, subtotal, tax, total_cost
              FROM tow_calls
              WHERE total_cost = 0 AND receive_date >= $1 AND receive_date <= $2
@@ -21,7 +22,8 @@ export async function GET(req: NextRequest) {
             [from, to]
           )
         : await query(
-            `SELECT id, call_no, receive_date, garage, truck, driver_id, trouble_cd,
+            `SELECT id, call_no, receive_date, garage, truck, driver_id,
+                    (SELECT dm.driver_name FROM driver_master dm WHERE dm.driver_id = tow_calls.driver_id) AS driver_name, trouble_cd,
                     club_code, om_mileage, towed_kms_paid, towed_kms, subtotal, tax, total_cost
              FROM tow_calls
              WHERE total_cost = 0
