@@ -10,6 +10,8 @@ type Event = {
   driverId: string | null;
   internalDriverId: string | null;
   internalDriverName: string | null;
+  // True when Samsara had no driver and the name comes from the vehicle's usual driver.
+  driverAssumed?: boolean;
   vehicleId: string | null;
   vehicleName: string | null;
   behaviorLabels: string[];
@@ -47,6 +49,82 @@ function toKmh(mph: number | null) {
 
 const MAX_LOOKUPS = 300;
 const LOOKUP_PARALLEL = 3;
+
+// Driver name, with a way to say who usually drives the vehicle when Samsara
+// shows nobody signed in. That choice applies to every event on that vehicle
+// that has no driver.
+function DriverCell({ event, onSaved }: { event: Event; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const canAssign = Boolean(event.vehicleName) && (!event.internalDriverName || event.driverAssumed);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await fetch("/api/vehicle-default-driver", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vehicle_name: event.vehicleName, driver_name: name }),
+      });
+      setEditing(false);
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="flex flex-col gap-1.5">
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") save();
+            if (e.key === "Escape") setEditing(false);
+          }}
+          placeholder="Driver name"
+          className="w-40 bg-transparent border-b border-[var(--line)] focus:border-[var(--ink-muted)] outline-none text-sm"
+        />
+        <div className="text-[11px] text-[var(--ink-muted)]">
+          For all {event.vehicleName} events with no driver. Leave empty to clear.
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={save}
+            disabled={saving}
+            className="text-xs px-3 py-1 rounded-full bg-[var(--ink)] text-white disabled:opacity-50"
+          >
+            Save
+          </button>
+          <button onClick={() => setEditing(false)} className="text-xs text-[var(--ink-muted)]">
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div>{event.internalDriverName ?? "Unknown"}</div>
+      {canAssign && (
+        <button
+          onClick={() => {
+            setName(event.driverAssumed ? event.internalDriverName ?? "" : "");
+            setEditing(true);
+          }}
+          className="text-[11px] text-[var(--ink-muted)] underline decoration-[var(--line)] hover:decoration-[var(--ink-muted)]"
+        >
+          {event.driverAssumed ? "vehicle's usual driver · change" : "assign driver"}
+        </button>
+      )}
+    </div>
+  );
+}
 
 export default function DriverBehaviourPage() {
   const [events, setEvents] = useState<Event[]>([]);
@@ -271,7 +349,9 @@ export default function DriverBehaviourPage() {
                         return (
                           <tr key={e.id} className="border-t border-[var(--line)]">
                             <td className="px-5 py-2.5 text-xs text-[var(--ink-muted)]">{new Date(e.time).toLocaleString()}</td>
-                            <td className="px-5 py-2.5">{e.internalDriverName ?? "Unknown"}</td>
+                            <td className="px-5 py-2.5">
+                              <DriverCell event={e} onSaved={() => load(range)} />
+                            </td>
                             <td className="px-5 py-2.5 text-xs">{e.vehicleName ?? "—"}</td>
                             <td className="px-5 py-2.5">
                               {e.behaviorLabels.map((label) => (

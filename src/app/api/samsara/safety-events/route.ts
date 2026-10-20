@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listSafetyEvents, SamsaraNotConfigured } from "@/lib/connectors/samsara";
 import { query } from "@/lib/db";
+import { loadVehicleDrivers, normalizeVehicle } from "@/lib/vehicleDriver";
 
 export const dynamic = "force-dynamic";
 
@@ -25,12 +26,24 @@ export async function GET(req: NextRequest) {
 
     const events = await listSafetyEvents(startTime, endTime, samsaraIds);
 
+    // When nobody was signed in to the vehicle Samsara gives no driver; fall
+    // back to whoever is set as that vehicle's usual driver.
+    let vehicleDrivers = new Map<string, string>();
+    try {
+      vehicleDrivers = await loadVehicleDrivers();
+    } catch {
+      // Leave those events as "Unknown" rather than failing the whole page.
+    }
+
     const enriched = events.map((e) => {
       const internal = e.driverId ? idToInternal.get(e.driverId) : undefined;
+      const samsaraName = internal?.driver_name ?? e.driverName;
+      const assumed = !samsaraName && !e.driverId ? vehicleDrivers.get(normalizeVehicle(e.vehicleName)) ?? null : null;
       return {
         ...e,
         internalDriverId: internal?.driver_id ?? null,
-        internalDriverName: internal?.driver_name ?? e.driverName,
+        internalDriverName: samsaraName ?? assumed,
+        driverAssumed: Boolean(assumed),
       };
     });
 
