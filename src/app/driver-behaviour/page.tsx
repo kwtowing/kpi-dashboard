@@ -22,7 +22,18 @@ type Event = {
 
 // Speed and street address looked up from the vehicle's GPS history at the
 // moment of the event (Samsara's event itself only carries coordinates).
-type GpsContext = { speedMph: number | null; address: string | null; latitude: number | null; longitude: number | null };
+type GpsContext = {
+  speedMph: number | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  // Posted limit and top speed, only present when Samsara recorded the vehicle
+  // as speeding at that moment.
+  limitKmh: number | null;
+  maxSpeedKmh: number | null;
+  severity: string | null;
+  limitUnavailable: string | null;
+};
 
 const HIGH_SEVERITY_LABELS = ["Speeding", "Harsh Braking", "Harsh Accel", "Harsh Turn", "Crash"];
 
@@ -35,7 +46,7 @@ function toKmh(mph: number | null) {
 }
 
 const MAX_LOOKUPS = 300;
-const LOOKUP_PARALLEL = 4;
+const LOOKUP_PARALLEL = 3;
 
 export default function DriverBehaviourPage() {
   const [events, setEvents] = useState<Event[]>([]);
@@ -69,7 +80,7 @@ export default function DriverBehaviourPage() {
   useEffect(() => {
     let cancelled = false;
     const todo = [...events]
-      .filter((e) => e.vehicleId && e.time && (e.speedMph === null || !e.location))
+      .filter((e) => e.vehicleId && e.time)
       .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
       .slice(0, MAX_LOOKUPS);
     let next = 0;
@@ -96,7 +107,20 @@ export default function DriverBehaviourPage() {
     };
   }, [events]);
 
-  const needsLookup = (e: Event) => Boolean(e.vehicleId) && (e.speedMph === null || !e.location);
+  const needsLookup = (e: Event) => Boolean(e.vehicleId);
+  // Posted limit and the top speed reached, in km/h. Only known when Samsara
+  // flagged the vehicle as speeding at that moment.
+  const limitOf = (e: Event) => gps[e.id]?.limitKmh ?? toKmh(e.postedSpeedMph);
+  const topSpeedOf = (e: Event) => {
+    const m = gps[e.id]?.maxSpeedKmh;
+    return m !== null && m !== undefined ? Math.round(m) : null;
+  };
+  const overBy = (e: Event) => {
+    const limit = limitOf(e);
+    const top = topSpeedOf(e) ?? toKmh(speedOf(e));
+    return limit !== null && limit !== undefined && top !== null ? Math.round(top - limit) : null;
+  };
+  const limitBlocked = Object.values(gps).some((g) => g?.limitUnavailable === "permission");
   const speedOf = (e: Event) => e.speedMph ?? gps[e.id]?.speedMph ?? null;
   const addressOf = (e: Event) => e.location ?? gps[e.id]?.address ?? null;
   const coordsOf = (e: Event) => {
@@ -132,7 +156,9 @@ export default function DriverBehaviourPage() {
                   Vehicle: e.vehicleName ?? "",
                   "Event type": e.behaviorLabels.join(", "),
                   "Speed (km/h)": toKmh(speedOf(e)) ?? "",
-                  "Posted speed (km/h)": toKmh(e.postedSpeedMph) ?? "",
+                  "Posted limit (km/h)": limitOf(e) ?? "",
+                  "Top speed while speeding (km/h)": topSpeedOf(e) ?? "",
+                  "Over the limit by (km/h)": (overBy(e) ?? 0) > 0 ? overBy(e) : "",
                   Location: locationText(e),
                   Latitude: coordsOf(e)?.lat ?? "",
                   Longitude: coordsOf(e)?.lng ?? "",
@@ -262,11 +288,24 @@ export default function DriverBehaviourPage() {
                               ))}
                             </td>
                             <td className="px-5 py-2.5 font-mono-num text-xs">
-                              {speedOf(e) !== null
-                                ? `${toKmh(speedOf(e))} km/h${e.postedSpeedMph !== null ? ` / ${toKmh(e.postedSpeedMph)} km/h limit` : ""}`
-                                : needsLookup(e) && gps[e.id] === undefined
-                                  ? "…"
-                                  : "—"}
+                              <div>
+                                {speedOf(e) !== null
+                                  ? `${toKmh(speedOf(e))} km/h`
+                                  : needsLookup(e) && gps[e.id] === undefined
+                                    ? "…"
+                                    : "—"}
+                              </div>
+                              {limitOf(e) !== null && limitOf(e) !== undefined && (
+                                <div className="mt-0.5 text-[11px] text-[var(--ink-muted)]">
+                                  limit {limitOf(e)}
+                                  {topSpeedOf(e) !== null && ` · top ${topSpeedOf(e)}`}
+                                  {(overBy(e) ?? 0) > 0 && (
+                                    <span className="ml-1 font-medium" style={{ color: "var(--cost)" }}>
+                                      +{overBy(e)} over
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </td>
                             <td className="px-5 py-2.5 text-xs">
                               {(() => {
@@ -299,7 +338,17 @@ export default function DriverBehaviourPage() {
         </div>
       ) : null}
 
+      {limitBlocked && (
+        <p className="text-xs mt-6" style={{ color: "var(--cost)" }}>
+          Speed limits can&apos;t be loaded: the Samsara API token needs the &quot;Read Speeding Intervals&quot;
+          permission. Add it to the token in Samsara and the limits will appear.
+        </p>
+      )}
       <p className="text-xs text-[var(--ink-muted)] mt-6">
+        Speed is the vehicle&apos;s reading at the time of the event. The posted limit appears when Samsara recorded the
+        vehicle as speeding at that moment, along with the top speed reached; other events have no limit on record.
+      </p>
+      <p className="text-xs text-[var(--ink-muted)] mt-3">
         Only drivers with a Samsara driver ID set in{" "}
         <a href="/administration" className="underline">
           Administration

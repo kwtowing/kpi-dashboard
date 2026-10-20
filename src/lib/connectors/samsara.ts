@@ -242,3 +242,105 @@ export async function getCurrentDriverVehicleAssignments(driverIds: string[]): P
     endTime: a.endTime ?? null,
   }));
 }
+
+export interface SamsaraSpeedingContext {
+  limitKmh: number | null;
+  maxSpeedKmh: number | null;
+  severity: string | null;
+}
+
+interface SpeedingInterval {
+  start: number;
+  end: number;
+  limitKmh: number;
+  maxSpeedKmh: number;
+  severity: string;
+}
+
+export class SamsaraSpeedLimitUnavailable extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SamsaraSpeedLimitUnavailable";
+  }
+}
+
+// Samsara only publishes posted speed limits inside its "speeding intervals"
+// (the stretches of a completed trip where the vehicle was over the limit),
+// each with the posted limit and the top speed reached. An event that falls
+// inside one of those stretches gets its limit; anything else has no limit on
+// record. Trips for one vehicle are fetched per hour-long bucket and kept for a
+// few minutes, so events from the same vehicle and hour share one lookup.
+const HOUR_MS = 60 * 60 * 1000;
+const INTERVAL_CACHE_TTL_MS = 15 * 60 * 1000;
+const intervalCache = new Map<string, { at: number; intervals: SpeedingInterval[] }>();
+
+async function speedingIntervalsFor(vehicleId: string, bucketStart: number): Promise<SpeedingInterval[]> {
+  const key = `${vehicleId}|${bucketStart}`;
+  const hit = intervalCache.get(key);
+  if (hit && Date.now() - hit.at < INTERVAL_CACHE_TTL_MS) return hit.intervals;
+
+  const intervals: SpeedingInterval[] = [];
+  let after: string | undefined;
+  for (let page = 0; page < 5; page++) {
+    const params = new URLSearchParams({
+      assetIds: vehicleId,
+      // A trip is listed by when it started, so look back far enough to catch
+      // a long trip that began before this hour.
+      startTime: new Date(bucketStart - 12 * HOUR_MS).toISOString(),
+      endTime: new Date(bucketStart + HOUR_MS).toISOString(),
+      queryBy: "tripStartTime",
+    });
+    if (after) params.set("after", after);
+    const res = await fetch(`${BASE}/speeding-intervals/stream?${params.toString()}`, {
+      headers: authHeaders(),
+      cache: "no-store",
+    });
+    if (res.status === 401 || res.status === 403) {
+      throw new SamsaraSpeedLimitUnavailable("permission");
+    }
+    if (!res.ok) {
+      throw new SamsaraSpeedLimitUnavailable(`Samsara API error ${res.status}`);
+    }
+    const json = await res.json();
+    for (const trip of json.data ?? []) {
+      for (const iv of trip.intervals ?? []) {
+        const limit = iv.postedSpeedLimitKilometersPerHour;
+        const max = iv.maxSpeedKilometersPerHour;
+        if (typeof limit !== "number" || typeof max !== "number") continue;
+        intervals.push({
+          start: new Date(iv.startTime).getTime(),
+          end: new Date(iv.endTime).getTime(),
+          limitKmh: limit,
+          maxSpeedKmh: max,
+          severity: String(iv.severityLevel ?? ""),
+        });
+      }
+    }
+    if (!json.pagination?.hasNextPage || !json.pagination?.endCursor) break;
+    after = json.pagination.endCursor;
+  }
+
+  if (intervalCache.size >= 2000) {
+    const oldest = intervalCache.keys().next().value;
+    if (oldest !== undefined) intervalCache.delete(oldest);
+  }
+  intervalCache.set(key, { at: Date.now(), intervals });
+  return intervals;
+}
+
+export async function getSpeedingContext(vehicleId: string, timeIso: string): Promise<SamsaraSpeedingContext> {
+  const t = new Date(timeIso).getTime();
+  const bucketStart = Math.floor(t / HOUR_MS) * HOUR_MS;
+  const intervals = await speedingIntervalsFor(vehicleId, bucketStart);
+
+  // The event counts as inside a speeding stretch if it falls within it,
+  // allowing a minute either side for clock differences.
+  const TOLERANCE_MS = 60_000;
+  const match = intervals
+    .filter((iv) => t >= iv.start - TOLERANCE_MS && t <= iv.end + TOLERANCE_MS)
+    .sort((a, b) => b.maxSpeedKmh - a.maxSpeedKmh)[0];
+
+  return match
+    ? { limitKmh: match.limitKmh, maxSpeedKmh: match.maxSpeedKmh, severity: match.severity || null }
+    : { limitKmh: null, maxSpeedKmh: null, severity: null };
+}
