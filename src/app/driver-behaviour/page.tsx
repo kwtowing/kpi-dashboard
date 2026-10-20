@@ -10,12 +10,19 @@ type Event = {
   driverId: string | null;
   internalDriverId: string | null;
   internalDriverName: string | null;
+  vehicleId: string | null;
   vehicleName: string | null;
   behaviorLabels: string[];
   speedMph: number | null;
   postedSpeedMph: number | null;
   location: string | null;
+  latitude: number | null;
+  longitude: number | null;
 };
+
+// Speed and street address looked up from the vehicle's GPS history at the
+// moment of the event (Samsara's event itself only carries coordinates).
+type GpsContext = { speedMph: number | null; address: string | null; latitude: number | null; longitude: number | null };
 
 const HIGH_SEVERITY_LABELS = ["Speeding", "Harsh Braking", "Harsh Accel", "Harsh Turn", "Crash"];
 
@@ -27,6 +34,9 @@ function toKmh(mph: number | null) {
   return mph !== null ? Math.round(mph * 1.60934) : null;
 }
 
+const MAX_LOOKUPS = 300;
+const LOOKUP_PARALLEL = 4;
+
 export default function DriverBehaviourPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [summary, setSummary] = useState<{ total: number; byLabel: Record<string, number>; byDriver: Record<string, { name: string; count: number }> } | null>(null);
@@ -35,6 +45,8 @@ export default function DriverBehaviourPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<DateRange>({ from: null, to: null });
+  // Per-event speed/address. Missing key = still looking up; null = nothing found.
+  const [gps, setGps] = useState<Record<string, GpsContext | null>>({});
 
   const load = useCallback(async (r: DateRange) => {
     setLoading(true);
@@ -52,6 +64,50 @@ export default function DriverBehaviourPage() {
   useEffect(() => {
     load(range);
   }, [range, load]);
+
+  // Look up speed and address for each event, newest first, a few at a time.
+  useEffect(() => {
+    let cancelled = false;
+    const todo = [...events]
+      .filter((e) => e.vehicleId && e.time && (e.speedMph === null || !e.location))
+      .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+      .slice(0, MAX_LOOKUPS);
+    let next = 0;
+
+    async function worker() {
+      while (!cancelled && next < todo.length) {
+        const e = todo[next++];
+        let result: GpsContext | null = null;
+        try {
+          const res = await fetch(
+            `/api/samsara/event-context?vehicleId=${encodeURIComponent(e.vehicleId!)}&time=${encodeURIComponent(e.time)}`
+          );
+          const json = await res.json();
+          if (!json.error) result = json;
+        } catch {
+          result = null;
+        }
+        if (!cancelled) setGps((g) => ({ ...g, [e.id]: result }));
+      }
+    }
+    for (let i = 0; i < LOOKUP_PARALLEL; i++) worker();
+    return () => {
+      cancelled = true;
+    };
+  }, [events]);
+
+  const needsLookup = (e: Event) => Boolean(e.vehicleId) && (e.speedMph === null || !e.location);
+  const speedOf = (e: Event) => e.speedMph ?? gps[e.id]?.speedMph ?? null;
+  const addressOf = (e: Event) => e.location ?? gps[e.id]?.address ?? null;
+  const coordsOf = (e: Event) => {
+    const lat = e.latitude ?? gps[e.id]?.latitude ?? null;
+    const lng = e.longitude ?? gps[e.id]?.longitude ?? null;
+    return lat !== null && lng !== null ? { lat, lng } : null;
+  };
+  const locationText = (e: Event) => {
+    const c = coordsOf(e);
+    return addressOf(e) ?? (c ? `${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}` : "");
+  };
 
   const driverRanking = summary ? Object.values(summary.byDriver).sort((a, b) => b.count - a.count) : [];
 
@@ -75,9 +131,11 @@ export default function DriverBehaviourPage() {
                   Driver: e.internalDriverName ?? "Unknown",
                   Vehicle: e.vehicleName ?? "",
                   "Event type": e.behaviorLabels.join(", "),
-                  "Speed (km/h)": toKmh(e.speedMph) ?? "",
+                  "Speed (km/h)": toKmh(speedOf(e)) ?? "",
                   "Posted speed (km/h)": toKmh(e.postedSpeedMph) ?? "",
-                  Location: e.location ?? "",
+                  Location: locationText(e),
+                  Latitude: coordsOf(e)?.lat ?? "",
+                  Longitude: coordsOf(e)?.lng ?? "",
                 })),
               },
             ]}
@@ -204,11 +262,32 @@ export default function DriverBehaviourPage() {
                               ))}
                             </td>
                             <td className="px-5 py-2.5 font-mono-num text-xs">
-                              {e.speedMph !== null
-                                ? `${toKmh(e.speedMph)} km/h${e.postedSpeedMph !== null ? ` / ${toKmh(e.postedSpeedMph)} km/h limit` : ""}`
-                                : "—"}
+                              {speedOf(e) !== null
+                                ? `${toKmh(speedOf(e))} km/h${e.postedSpeedMph !== null ? ` / ${toKmh(e.postedSpeedMph)} km/h limit` : ""}`
+                                : needsLookup(e) && gps[e.id] === undefined
+                                  ? "…"
+                                  : "—"}
                             </td>
-                            <td className="px-5 py-2.5 text-xs">{e.location ?? "—"}</td>
+                            <td className="px-5 py-2.5 text-xs">
+                              {(() => {
+                                const c = coordsOf(e);
+                                const text = locationText(e);
+                                if (!text) return needsLookup(e) && gps[e.id] === undefined ? "…" : "—";
+                                return c ? (
+                                  <a
+                                    href={`https://www.google.com/maps?q=${c.lat},${c.lng}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="underline decoration-[var(--line)] hover:decoration-[var(--ink-muted)]"
+                                    title="Open in Google Maps"
+                                  >
+                                    {text}
+                                  </a>
+                                ) : (
+                                  text
+                                );
+                              })()}
+                            </td>
                           </tr>
                         );
                       })}

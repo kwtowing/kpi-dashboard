@@ -80,6 +80,8 @@ export interface SamsaraSafetyEvent {
   speedMph: number | null;
   postedSpeedMph: number | null;
   location: string | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 // Driver behaviour / safety events (speeding, harsh braking, harsh
@@ -122,9 +124,79 @@ export async function listSafetyEvents(
       severity: e.severity ?? e.harshEvent?.severity ?? null,
       speedMph: e.speedingEvent?.speedMph ?? e.harshEvent?.speedAtEventMph ?? null,
       postedSpeedMph: e.speedingEvent?.postedSpeedMph ?? null,
-      location: e.location?.formattedAddress ?? e.location?.address ?? null,
+      location:
+        [e.location?.formattedAddress, e.location?.address].find((a) => typeof a === "string" && a.length > 0) ?? null,
+      // Samsara safety events carry coordinates only (no speed, no street address).
+      latitude: typeof e.location?.latitude === "number" ? e.location.latitude : null,
+      longitude: typeof e.location?.longitude === "number" ? e.location.longitude : null,
     };
   });
+}
+
+export interface SamsaraGpsContext {
+  speedMph: number | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+// Safety events do not include the vehicle's speed or a street address, so
+// both are looked up from the vehicle's GPS history around the moment of the
+// event: the reading closest in time to the event is used. A past event never
+// changes, so results are cached in memory for as long as the server instance
+// lives.
+const gpsCache = new Map<string, SamsaraGpsContext>();
+const GPS_CACHE_MAX = 5000;
+
+export async function getGpsContext(vehicleId: string, timeIso: string): Promise<SamsaraGpsContext> {
+  const key = `${vehicleId}|${timeIso}`;
+  const cached = gpsCache.get(key);
+  if (cached) return cached;
+
+  const t = new Date(timeIso).getTime();
+  const params = new URLSearchParams({
+    startTime: new Date(t - 60_000).toISOString(),
+    endTime: new Date(t + 30_000).toISOString(),
+    vehicleIds: vehicleId,
+    types: "gps",
+  });
+  const res = await fetch(`${BASE}/fleet/vehicles/stats/history?${params.toString()}`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error(`Samsara API error ${res.status}: ${await res.text()}`);
+  }
+  const json = await res.json();
+  const points: any[] = (json.data ?? []).flatMap((v: any) => (Array.isArray(v.gps) ? v.gps : []));
+
+  let best: any = null;
+  let bestGap = Infinity;
+  for (const p of points) {
+    const gap = Math.abs(new Date(p.time).getTime() - t);
+    if (gap < bestGap) {
+      best = p;
+      bestGap = gap;
+    }
+  }
+
+  const ctx: SamsaraGpsContext = best
+    ? {
+        speedMph: typeof best.speedMilesPerHour === "number" ? best.speedMilesPerHour : null,
+        address:
+          [best.reverseGeo?.formattedLocation, best.address?.name].find((a) => typeof a === "string" && a.length > 0) ??
+          null,
+        latitude: typeof best.latitude === "number" ? best.latitude : null,
+        longitude: typeof best.longitude === "number" ? best.longitude : null,
+      }
+    : { speedMph: null, address: null, latitude: null, longitude: null };
+
+  if (gpsCache.size >= GPS_CACHE_MAX) {
+    const oldest = gpsCache.keys().next().value;
+    if (oldest !== undefined) gpsCache.delete(oldest);
+  }
+  gpsCache.set(key, ctx);
+  return ctx;
 }
 
 export interface SamsaraAssignment {
