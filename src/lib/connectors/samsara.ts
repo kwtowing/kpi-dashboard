@@ -135,6 +135,10 @@ export async function listSafetyEvents(
 
 export interface SamsaraGpsContext {
   speedMph: number | null;
+  // Where the speed came from ("ecu" = the vehicle's own speed signal, "gps"
+  // = GPS speed) and how many seconds from the event that reading was taken.
+  speedSource: "ecu" | "gps" | null;
+  speedGapSec: number | null;
   address: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -148,48 +152,68 @@ export interface SamsaraGpsContext {
 const gpsCache = new Map<string, SamsaraGpsContext>();
 const GPS_CACHE_MAX = 5000;
 
+// A reading further than this from the event is not treated as "the speed at
+// the event" for the ECU signal (it only reports when the speed changes).
+const ECU_MAX_GAP_MS = 20_000;
+
 export async function getGpsContext(vehicleId: string, timeIso: string): Promise<SamsaraGpsContext> {
-  const key = `${vehicleId}|${timeIso}`;
+  const key = `v2|${vehicleId}|${timeIso}`;
   const cached = gpsCache.get(key);
   if (cached) return cached;
 
   const t = new Date(timeIso).getTime();
-  const params = new URLSearchParams({
-    startTime: new Date(t - 60_000).toISOString(),
-    endTime: new Date(t + 30_000).toISOString(),
-    vehicleIds: vehicleId,
-    types: "gps",
-  });
-  const res = await fetch(`${BASE}/fleet/vehicles/stats/history?${params.toString()}`, {
-    headers: authHeaders(),
-    cache: "no-store",
-  });
+  const fetchHistory = async (types: string) => {
+    const params = new URLSearchParams({
+      startTime: new Date(t - 60_000).toISOString(),
+      endTime: new Date(t + 30_000).toISOString(),
+      vehicleIds: vehicleId,
+      types,
+    });
+    return fetch(`${BASE}/fleet/vehicles/stats/history?${params.toString()}`, {
+      headers: authHeaders(),
+      cache: "no-store",
+    });
+  };
+  // The ECU speed is the vehicle's own speed reading, the closest thing to what
+  // Samsara's alert saw. Not every vehicle reports it, so GPS speed is the fallback.
+  let res = await fetchHistory("gps,ecuSpeedMph");
+  if (res.status === 400) res = await fetchHistory("gps");
   if (!res.ok) {
     throw new Error(`Samsara API error ${res.status}: ${await res.text()}`);
   }
   const json = await res.json();
   const points: any[] = (json.data ?? []).flatMap((v: any) => (Array.isArray(v.gps) ? v.gps : []));
+  const ecu: any[] = (json.data ?? []).flatMap((v: any) => (Array.isArray(v.ecuSpeedMph) ? v.ecuSpeedMph : []));
 
-  let best: any = null;
-  let bestGap = Infinity;
-  for (const p of points) {
-    const gap = Math.abs(new Date(p.time).getTime() - t);
-    if (gap < bestGap) {
-      best = p;
-      bestGap = gap;
-    }
-  }
-
-  const ctx: SamsaraGpsContext = best
-    ? {
-        speedMph: typeof best.speedMilesPerHour === "number" ? best.speedMilesPerHour : null,
-        address:
-          [best.reverseGeo?.formattedLocation, best.address?.name].find((a) => typeof a === "string" && a.length > 0) ??
-          null,
-        latitude: typeof best.latitude === "number" ? best.latitude : null,
-        longitude: typeof best.longitude === "number" ? best.longitude : null,
+  const nearest = (arr: any[]) => {
+    let best: any = null;
+    let bestGap = Infinity;
+    for (const p of arr) {
+      const gap = Math.abs(new Date(p.time).getTime() - t);
+      if (gap < bestGap) {
+        best = p;
+        bestGap = gap;
       }
-    : { speedMph: null, address: null, latitude: null, longitude: null };
+    }
+    return { best, gap: bestGap };
+  };
+  const g = nearest(points);
+  const e = nearest(ecu);
+  const ecuOk = e.best && typeof e.best.value === "number" && e.gap <= ECU_MAX_GAP_MS;
+  const gpsSpeedOk = g.best && typeof g.best.speedMilesPerHour === "number";
+
+  const ctx: SamsaraGpsContext = {
+    speedMph: ecuOk ? e.best.value : gpsSpeedOk ? g.best.speedMilesPerHour : null,
+    speedSource: ecuOk ? "ecu" : gpsSpeedOk ? "gps" : null,
+    speedGapSec: ecuOk ? Math.round(e.gap / 1000) : gpsSpeedOk ? Math.round(g.gap / 1000) : null,
+    address: nearest(points.filter((p) => p.reverseGeo?.formattedLocation || p.address?.name)).best
+      ? ((p: any) => p.reverseGeo?.formattedLocation || p.address?.name || null)(
+          nearest(points.filter((p) => p.reverseGeo?.formattedLocation || p.address?.name)).best
+        )
+      : null,
+    latitude: g.best && typeof g.best.latitude === "number" ? g.best.latitude : null,
+    longitude: g.best && typeof g.best.longitude === "number" ? g.best.longitude : null,
+  };
 
   if (gpsCache.size >= GPS_CACHE_MAX) {
     const oldest = gpsCache.keys().next().value;
@@ -343,4 +367,138 @@ export async function getSpeedingContext(vehicleId: string, timeIso: string): Pr
   return match
     ? { limitKmh: match.limitKmh, maxSpeedKmh: match.maxSpeedKmh, severity: match.severity || null }
     : { limitKmh: null, maxSpeedKmh: null, severity: null };
+}
+
+
+// ---------------------------------------------------------------------------
+// Speeding events. Samsara does not list speeding in its safety events, it
+// keeps it as "speeding intervals" on completed trips: each stretch where the
+// vehicle was over the posted limit, with the limit and the top speed reached.
+// Every interval is turned into an event so speeding appears alongside the
+// harsh-driving events.
+// ---------------------------------------------------------------------------
+export interface SamsaraSpeedingEvent {
+  id: string;
+  time: string;
+  endTime: string;
+  vehicleId: string;
+  vehicleName: string | null;
+  limitKmh: number | null;
+  maxSpeedKmh: number;
+  severity: string | null;
+  dismissed: boolean;
+}
+
+export async function listVehicleNames(): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  let after: string | undefined;
+  for (let page = 0; page < 10; page++) {
+    const params = new URLSearchParams({ limit: "512" });
+    if (after) params.set("after", after);
+    const res = await fetch(`${BASE}/fleet/vehicles?${params.toString()}`, { headers: authHeaders(), cache: "no-store" });
+    if (!res.ok) throw new Error(`Samsara API error ${res.status}: ${await res.text()}`);
+    const json = await res.json();
+    for (const v of json.data ?? []) out.set(String(v.id), v.name ?? "");
+    if (!json.pagination?.hasNextPage || !json.pagination?.endCursor) break;
+    after = json.pagination.endCursor;
+  }
+  return out;
+}
+
+export async function listSpeedingEvents(startTime: string, endTime: string): Promise<SamsaraSpeedingEvent[]> {
+  const names = await listVehicleNames();
+  const ids = [...names.keys()];
+  const from = new Date(startTime).getTime();
+  const to = new Date(endTime).getTime();
+  const out: SamsaraSpeedingEvent[] = [];
+  const BATCH = 4;
+  for (let i = 0; i < ids.length; i += BATCH) {
+    await Promise.all(
+      ids.slice(i, i + BATCH).map(async (vehicleId) => {
+        let after: string | undefined;
+        for (let page = 0; page < 5; page++) {
+          const params = new URLSearchParams({
+            assetIds: vehicleId,
+            // Trips are listed by start time, so look back far enough to catch a
+            // long trip that began before the period.
+            startTime: new Date(from - 12 * HOUR_MS).toISOString(),
+            endTime: new Date(to).toISOString(),
+            queryBy: "tripStartTime",
+          });
+          if (after) params.set("after", after);
+          const res = await fetch(`${BASE}/speeding-intervals/stream?${params.toString()}`, {
+            headers: authHeaders(),
+            cache: "no-store",
+          });
+          if (res.status === 401 || res.status === 403) throw new SamsaraSpeedLimitUnavailable("permission");
+          if (!res.ok) throw new SamsaraSpeedLimitUnavailable(`Samsara API error ${res.status}`);
+          const json = await res.json();
+          for (const trip of json.data ?? []) {
+            for (const iv of trip.intervals ?? []) {
+              const max = iv.maxSpeedKilometersPerHour;
+              const start = new Date(iv.startTime).getTime();
+              if (typeof max !== "number" || Number.isNaN(start) || start < from || start > to) continue;
+              out.push({
+                id: `speeding-${vehicleId}-${start}`,
+                time: new Date(start).toISOString(),
+                endTime: new Date(iv.endTime ?? start).toISOString(),
+                vehicleId,
+                vehicleName: names.get(vehicleId) ?? null,
+                limitKmh: typeof iv.postedSpeedLimitKilometersPerHour === "number" ? iv.postedSpeedLimitKilometersPerHour : null,
+                maxSpeedKmh: max,
+                severity: iv.severityLevel ? String(iv.severityLevel) : null,
+                dismissed: Boolean(iv.isDismissed),
+              });
+            }
+          }
+          if (!json.pagination?.hasNextPage || !json.pagination?.endCursor) break;
+          after = json.pagination.endCursor;
+        }
+      })
+    );
+  }
+  return out;
+}
+
+// Who was signed in to each vehicle over a period, so a speeding event can be
+// given a driver. Returns, per vehicle, the driver stretches with start/end.
+export async function listVehicleDriverStretches(
+  vehicleIds: string[],
+  startTime: string,
+  endTime: string
+): Promise<Map<string, { driverId: string; driverName: string | null; start: number; end: number }[]>> {
+  const out = new Map<string, { driverId: string; driverName: string | null; start: number; end: number }[]>();
+  if (vehicleIds.length === 0) return out;
+  for (let i = 0; i < vehicleIds.length; i += 50) {
+    const params = new URLSearchParams({
+      startTime,
+      endTime,
+      filterBy: "vehicles",
+      vehicleIds: vehicleIds.slice(i, i + 50).join(","),
+    });
+    const res = await fetch(`${BASE}/fleet/driver-vehicle-assignments?${params.toString()}`, {
+      headers: authHeaders(),
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error(`Samsara API error ${res.status}: ${await res.text()}`);
+    const json = await res.json();
+    for (const item of json.data ?? []) {
+      // Samsara returns either one row per assignment or one row per vehicle holding a list.
+      const rows: any[] = Array.isArray(item.driverAssignments) ? item.driverAssignments.map((a: any) => ({ ...a, vehicle: a.vehicle ?? item.vehicle ?? { id: item.id } })) : [item];
+      for (const a of rows) {
+        const vid = String(a.vehicle?.id ?? a.vehicleId ?? "");
+        const did = String(a.driver?.id ?? a.driverId ?? "");
+        if (!vid || !did || !a.startTime) continue;
+        const list = out.get(vid) ?? [];
+        list.push({
+          driverId: did,
+          driverName: a.driver?.name ?? null,
+          start: new Date(a.startTime).getTime(),
+          end: a.endTime ? new Date(a.endTime).getTime() : Date.now(),
+        });
+        out.set(vid, list);
+      }
+    }
+  }
+  return out;
 }

@@ -20,12 +20,19 @@ type Event = {
   location: string | null;
   latitude: number | null;
   longitude: number | null;
+  // Present on speeding events: the top speed reached, the posted limit, and
+  // how long the vehicle was over it.
+  speedKmh?: number | null;
+  postedKmh?: number | null;
+  speedingSeconds?: number | null;
 };
 
 // Speed and street address looked up from the vehicle's GPS history at the
 // moment of the event (Samsara's event itself only carries coordinates).
 type GpsContext = {
   speedMph: number | null;
+  speedSource?: "ecu" | "gps" | null;
+  speedGapSec?: number | null;
   address: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -131,6 +138,7 @@ export default function DriverBehaviourPage() {
   const [summary, setSummary] = useState<{ total: number; byLabel: Record<string, number>; byDriver: Record<string, { name: string; count: number }> } | null>(null);
   const [connected, setConnected] = useState(true);
   const [reason, setReason] = useState<string | null>(null);
+  const [speedingUnavailable, setSpeedingUnavailable] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<DateRange>({ from: null, to: null });
@@ -146,6 +154,7 @@ export default function DriverBehaviourPage() {
     setSummary(json.summary ?? null);
     setConnected(json.connected);
     setReason(json.reason ?? null);
+    setSpeedingUnavailable(json.speedingUnavailable ?? null);
     setError(json.error ?? null);
     setLoading(false);
   }, []);
@@ -188,9 +197,9 @@ export default function DriverBehaviourPage() {
   const needsLookup = (e: Event) => Boolean(e.vehicleId);
   // Posted limit and the top speed reached, in km/h. Only known when Samsara
   // flagged the vehicle as speeding at that moment.
-  const limitOf = (e: Event) => gps[e.id]?.limitKmh ?? toKmh(e.postedSpeedMph);
+  const limitOf = (e: Event) => e.postedKmh ?? gps[e.id]?.limitKmh ?? toKmh(e.postedSpeedMph);
   const topSpeedOf = (e: Event) => {
-    const m = gps[e.id]?.maxSpeedKmh;
+    const m = e.speedKmh ?? gps[e.id]?.maxSpeedKmh;
     return m !== null && m !== undefined ? Math.round(m) : null;
   };
   const overBy = (e: Event) => {
@@ -199,7 +208,9 @@ export default function DriverBehaviourPage() {
     return limit !== null && limit !== undefined && top !== null ? Math.round(top - limit) : null;
   };
   const limitBlocked = Object.values(gps).some((g) => g?.limitUnavailable === "permission");
-  const speedOf = (e: Event) => e.speedMph ?? gps[e.id]?.speedMph ?? null;
+  const isSpeedingEvent = (e: Event) => e.speedKmh !== undefined && e.speedKmh !== null;
+  const speedOf = (e: Event) =>
+    isSpeedingEvent(e) ? e.speedKmh! / 1.60934 : (e.speedMph ?? gps[e.id]?.speedMph ?? null);
   const addressOf = (e: Event) => e.location ?? gps[e.id]?.address ?? null;
   const coordsOf = (e: Event) => {
     const lat = e.latitude ?? gps[e.id]?.latitude ?? null;
@@ -370,15 +381,24 @@ export default function DriverBehaviourPage() {
                             <td className="px-5 py-2.5 font-mono-num text-xs">
                               <div>
                                 {speedOf(e) !== null
-                                  ? `${toKmh(speedOf(e))} km/h`
+                                  ? `${isSpeedingEvent(e) ? Math.round(e.speedKmh!) : toKmh(speedOf(e))} km/h`
                                   : needsLookup(e) && gps[e.id] === undefined
                                     ? "…"
                                     : "—"}
                               </div>
+                              <div className="mt-0.5 text-[11px] text-[var(--ink-muted)] font-sans">
+                                {isSpeedingEvent(e)
+                                  ? `top speed${e.speedingSeconds ? ` over ${e.speedingSeconds}s` : ""}`
+                                  : gps[e.id]?.speedSource
+                                    ? `${gps[e.id]!.speedSource === "ecu" ? "vehicle speed" : "GPS speed"}${
+                                        gps[e.id]!.speedGapSec ? ` · ${gps[e.id]!.speedGapSec}s from event` : " · at event"
+                                      }`
+                                    : ""}
+                              </div>
                               {limitOf(e) !== null && limitOf(e) !== undefined && (
                                 <div className="mt-0.5 text-[11px] text-[var(--ink-muted)]">
                                   limit {limitOf(e)}
-                                  {topSpeedOf(e) !== null && ` · top ${topSpeedOf(e)}`}
+                                  {!isSpeedingEvent(e) && topSpeedOf(e) !== null && ` · top ${topSpeedOf(e)}`}
                                   {(overBy(e) ?? 0) > 0 && (
                                     <span className="ml-1 font-medium" style={{ color: "var(--cost)" }}>
                                       +{overBy(e)} over
@@ -418,6 +438,14 @@ export default function DriverBehaviourPage() {
         </div>
       ) : null}
 
+      {speedingUnavailable && (
+        <p className="text-xs mt-6" style={{ color: "var(--cost)" }}>
+          Speeding events can&apos;t be loaded
+          {speedingUnavailable === "permission"
+            ? ': the Samsara API token needs the "Read Speeding Intervals" permission. Add it to the token in Samsara and they will appear here.'
+            : "."}
+        </p>
+      )}
       {limitBlocked && (
         <p className="text-xs mt-6" style={{ color: "var(--cost)" }}>
           Speed limits can&apos;t be loaded: the Samsara API token needs the &quot;Read Speeding Intervals&quot;
@@ -425,7 +453,10 @@ export default function DriverBehaviourPage() {
         </p>
       )}
       <p className="text-xs text-[var(--ink-muted)] mt-6">
-        Speed is the vehicle&apos;s reading at the time of the event. The posted limit appears when Samsara recorded the
+        For harsh-driving events, speed is the vehicle&apos;s own speed signal at the moment of the event (GPS speed if the
+        vehicle does not report it); the line under it says which, and how many seconds from the event the reading was.
+        Samsara does not include a speed with these events. For speeding events, the speed shown is the top speed reached
+        and the posted limit comes with it. The posted limit appears when Samsara recorded the
         vehicle as speeding at that moment, along with the top speed reached; other events have no limit on record.
       </p>
       <p className="text-xs text-[var(--ink-muted)] mt-3">

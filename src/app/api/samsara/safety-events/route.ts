@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listSafetyEvents, SamsaraNotConfigured } from "@/lib/connectors/samsara";
+import {
+  listSafetyEvents,
+  listSpeedingEvents,
+  listVehicleDriverStretches,
+  SamsaraNotConfigured,
+  SamsaraSpeedLimitUnavailable,
+} from "@/lib/connectors/samsara";
 import { query } from "@/lib/db";
 import { loadVehicleDrivers, normalizeVehicle } from "@/lib/vehicleDriver";
 
@@ -35,7 +41,58 @@ export async function GET(req: NextRequest) {
       // Leave those events as "Unknown" rather than failing the whole page.
     }
 
-    const enriched = events.map((e) => {
+    // Speeding is kept by Samsara as "speeding intervals" rather than safety
+    // events, so it is fetched separately and added to the same list. If that
+    // part fails (usually a missing token permission) the rest still shows.
+    let speedingNote: string | null = null;
+    const speedingRows: typeof events = [];
+    try {
+      const speeding = (await listSpeedingEvents(startTime, endTime)).filter((sp) => !sp.dismissed);
+      // Skip any that Samsara already reported as a "Speeding" safety event.
+      const already = events.filter((e) => e.behaviorLabels.some((l) => /speed/i.test(l)));
+      const fresh = speeding.filter(
+        (sp) =>
+          !already.some(
+            (e) => e.vehicleId === sp.vehicleId && Math.abs(new Date(e.time).getTime() - new Date(sp.time).getTime()) < 120_000
+          )
+      );
+      let stretches = new Map<string, { driverId: string; driverName: string | null; start: number; end: number }[]>();
+      try {
+        stretches = await listVehicleDriverStretches(
+          [...new Set(fresh.map((f) => f.vehicleId))],
+          new Date(new Date(startTime).getTime() - 12 * 3600_000).toISOString(),
+          endTime
+        );
+      } catch {
+        // Drivers stay unknown (or fall back to the vehicle's usual driver).
+      }
+      for (const sp of fresh) {
+        const t = new Date(sp.time).getTime();
+        const who = (stretches.get(sp.vehicleId) ?? []).find((x) => t >= x.start && t <= x.end);
+        speedingRows.push({
+          id: sp.id,
+          time: sp.time,
+          driverId: who?.driverId ?? null,
+          driverName: who?.driverName ?? null,
+          vehicleId: sp.vehicleId,
+          vehicleName: sp.vehicleName,
+          behaviorLabels: ["Speeding"],
+          severity: sp.severity,
+          speedMph: null,
+          postedSpeedMph: null,
+          location: null,
+          latitude: null,
+          longitude: null,
+          speedKmh: sp.maxSpeedKmh,
+          postedKmh: sp.limitKmh,
+          speedingSeconds: Math.max(0, Math.round((new Date(sp.endTime).getTime() - t) / 1000)),
+        } as any);
+      }
+    } catch (err: any) {
+      speedingNote = err instanceof SamsaraSpeedLimitUnavailable ? err.message : "error";
+    }
+
+    const enriched = [...events, ...speedingRows].map((e) => {
       const internal = e.driverId ? idToInternal.get(e.driverId) : undefined;
       const samsaraName = internal?.driver_name ?? e.driverName;
       const assumed = !samsaraName && !e.driverId ? vehicleDrivers.get(normalizeVehicle(e.vehicleName)) ?? null : null;
@@ -64,6 +121,7 @@ export async function GET(req: NextRequest) {
       connected: true,
       range: { from: startTime, to: endTime },
       events: enriched,
+      speedingUnavailable: speedingNote,
       summary: {
         total: enriched.length,
         byLabel,
