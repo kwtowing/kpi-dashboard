@@ -74,9 +74,9 @@ export default function DashboardPage() {
     <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-6xl">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
         <div>
-          <h1 className="font-display italic text-3xl">Executive Dashboard</h1>
+          <h1 className="font-display italic text-3xl">Statistical Overview &amp; Planning Dashboard</h1>
           <p className="text-sm text-[var(--ink-muted)] mt-1">
-            KW Towing operations, revenue and cost — all figures in CAD.
+            Tow operations, revenue and manpower cost — CAD dollars.
           </p>
         </div>
         <PeriodSelector value={period} onChange={setPeriod} />
