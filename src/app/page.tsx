@@ -58,11 +58,13 @@ export default function DashboardPage() {
   }, [period, range, load]);
 
   useEffect(() => {
-    fetch("/api/flagged-calls")
+    // Follow the selected date range, so the banner agrees with the totals above it.
+    const qs = range.from && range.to ? `?from=${range.from}&to=${range.to}` : "";
+    fetch("/api/flagged-calls" + qs)
       .then((r) => r.json())
       .then((j) => setFlaggedCount(j.count ?? 0))
       .catch(() => {});
-  }, []);
+  }, [range]);
 
   if (needsSetup) {
     return <SetupBanner onReady={() => load(period, range)} />;
@@ -124,7 +126,7 @@ export default function DashboardPage() {
           <span className="text-lg leading-none">⚠</span>
           <div className="text-sm" style={{ color: "var(--cost)" }}>
             <span className="font-medium">{flaggedCount} call{flaggedCount === 1 ? "" : "s"} flagged for dispute</span>
-            <span className="text-[var(--ink-muted)]"> — $0 total cost, review on the Drivers &amp; disputes page →</span>
+            <span className="text-[var(--ink-muted)]"> — $0 total cost{range.from && range.to ? " in this date range" : ""}, review on the Drivers &amp; disputes page →</span>
           </div>
         </Link>
       )}
