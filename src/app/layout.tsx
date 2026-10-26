@@ -22,7 +22,7 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "KW Towing Operations Intelligence Portal",
+  title: "KW Towing Management Information System",
   description: "Fleet, CAA revenue, and operational cost intelligence for KW Towing.",
 };
 

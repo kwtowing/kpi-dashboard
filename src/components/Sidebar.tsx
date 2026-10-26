@@ -99,7 +99,7 @@ export default function Sidebar() {
           <div>
             <Image src="/kw-logo.png" alt="KW Towing" width={1223} height={644} className="w-36 h-auto mb-2" priority />
             <div className="font-display italic text-sm leading-tight text-[var(--ink-muted)]">
-              Operations Intelligence
+              Management Information System
             </div>
             <div className="text-xs text-[var(--ink-muted)] mt-1.5 tracking-wide">Ontario · CAD</div>
           </div>
