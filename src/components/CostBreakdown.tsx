@@ -71,7 +71,7 @@ export default function CostBreakdown({
               key={t.value}
               onClick={() => setTab(t.value)}
               className={`px-3.5 py-1 rounded-full text-sm transition-colors ${
-                tab === t.value ? "bg-[var(--ink)] text-white" : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                tab === t.value ? "bg-[var(--accent)] text-white" : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
               }`}
             >
               {t.label}

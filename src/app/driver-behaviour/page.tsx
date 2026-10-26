@@ -96,7 +96,7 @@ function DriverCell({ event, onSaved }: { event: Event; onSaved: () => void }) {
           <button
             onClick={save}
             disabled={saving}
-            className="text-xs px-3 py-1 rounded-full bg-[var(--ink)] text-white disabled:opacity-50"
+            className="text-xs px-3 py-1 rounded-full bg-[var(--accent)] text-white disabled:opacity-50"
           >
             Save
           </button>

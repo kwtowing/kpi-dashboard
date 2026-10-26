@@ -146,7 +146,7 @@ export default function UploadPage() {
             <button
               onClick={runImport}
               disabled={!ready || status === "importing"}
-              className="px-5 py-2.5 rounded-full bg-[var(--ink)] text-white text-sm disabled:opacity-40"
+              className="px-5 py-2.5 rounded-full bg-[var(--accent)] text-white text-sm disabled:opacity-40"
             >
               {status === "importing" ? "Importing…" : `Import ${rows.length} rows`}
             </button>

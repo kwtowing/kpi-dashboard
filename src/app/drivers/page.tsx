@@ -78,7 +78,7 @@ export default function DriversPage() {
               key={p.value}
               onClick={() => setPeriod(p.value)}
               className={`px-4 py-1.5 rounded-full text-sm transition-colors ${
-                period === p.value ? "bg-[var(--ink)] text-white" : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                period === p.value ? "bg-[var(--accent)] text-white" : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
               }`}
             >
               {p.label}

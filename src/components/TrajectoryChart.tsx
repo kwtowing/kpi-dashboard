@@ -204,7 +204,7 @@ export default function TrajectoryChart({ range }: { range: { from: string | nul
             <defs>
               <linearGradient id="barUp" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="var(--accent)" stopOpacity={1} />
-                <stop offset="100%" stopColor="var(--accent)" stopOpacity={0.45} />
+                <stop offset="100%" stopColor="var(--aqua)" stopOpacity={0.75} />
               </linearGradient>
               <linearGradient id="barDown" x1="0" y1="1" x2="0" y2="0">
                 <stop offset="0%" stopColor="var(--cost)" stopOpacity={1} />

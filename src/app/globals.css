@@ -1,17 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #f5f4ef;
+  /* KW Towing brand: logo blue + aquamarine */
+  --bg: #eaf6fb;
   --surface: #ffffff;
-  --ink: #17181c;
-  --ink-muted: #6b6e76;
-  --line: #e5e2d8;
-  --revenue: #0f6e5d;
-  --revenue-soft: #e6f2ee;
-  --cost: #b5533c;
-  --cost-soft: #f7e9e4;
-  --accent: #2451c7;
-  --accent-soft: #e8edfb;
+  --ink: #0e2a3d;
+  --ink-muted: #587083;
+  --line: #d3e6ef;
+  --revenue: #0a8473;
+  --revenue-soft: #def6f1;
+  --cost: #cc5239;
+  --cost-soft: #fbe9e4;
+  --accent: #0a7fc2;
+  --accent-soft: #dff1fb;
+  --aqua: #2fd6c0;
+  --aqua-soft: #d9f8f3;
+  --brand-gradient: linear-gradient(135deg, #0a9bdc 0%, #2fd6c0 100%);
 }
 
 * {
@@ -20,6 +24,8 @@
 
 body {
   font-feature-settings: "tnum" 1;
+  background-image: linear-gradient(180deg, #d9f0fa 0, rgba(234, 246, 251, 0) 360px);
+  background-repeat: no-repeat;
 }
 
 .font-display {
@@ -38,7 +44,11 @@ body {
 }
 
 ::selection {
-  background: var(--accent-soft);
+  background: var(--aqua-soft);
+}
+
+.brand-gradient {
+  background-image: var(--brand-gradient);
 }
 
 /* Printing / "Save as PDF" from the Reports page: hide navigation and controls. */

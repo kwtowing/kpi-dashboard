@@ -98,7 +98,7 @@ export default function AdministrationPage() {
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-1.5 rounded-full text-sm transition-colors capitalize ${
-              tab === t ? "bg-[var(--ink)] text-white" : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
+              tab === t ? "bg-[var(--accent)] text-white" : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
             }`}
           >
             {t === "drivers" ? "Driver master" : "Truck master"}
@@ -190,7 +190,7 @@ function BulkHoursControl({ onApply }: { onApply: (hours: number) => Promise<voi
           setApplying(false);
         }}
         disabled={applying}
-        className="px-3 py-1.5 rounded-full bg-[var(--ink)] text-white text-xs disabled:opacity-50"
+        className="px-3 py-1.5 rounded-full bg-[var(--accent)] text-white text-xs disabled:opacity-50"
       >
         {applying ? "Applying…" : "Apply to all drivers"}
       </button>
@@ -366,7 +366,7 @@ function DriverRow({
               });
               setDirty(false);
             }}
-            className="text-xs px-3 py-1 rounded-full bg-[var(--ink)] text-white"
+            className="text-xs px-3 py-1 rounded-full bg-[var(--accent)] text-white"
           >
             Save
           </button>
@@ -420,7 +420,7 @@ function TruckRow({ truck, onSave }: { truck: Truck; onSave: (t: Truck) => void 
               onSave({ ...truck, samsara_name: samsaraName, vehicle_class: vehicleClass || null });
               setDirty(false);
             }}
-            className="text-xs px-3 py-1 rounded-full bg-[var(--ink)] text-white"
+            className="text-xs px-3 py-1 rounded-full bg-[var(--accent)] text-white"
           >
             Save
           </button>

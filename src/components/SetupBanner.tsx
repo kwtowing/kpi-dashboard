@@ -29,7 +29,7 @@ export default function SetupBanner({ onReady }: { onReady: () => void }) {
       <button
         onClick={runSetup}
         disabled={status === "loading"}
-        className="px-5 py-2.5 rounded-full bg-[var(--ink)] text-white text-sm disabled:opacity-50"
+        className="px-5 py-2.5 rounded-full bg-[var(--accent)] text-white text-sm disabled:opacity-50"
       >
         {status === "loading" ? "Setting up…" : "Set up database"}
       </button>

@@ -94,6 +94,7 @@ export default function Sidebar() {
           fixed inset-y-0 left-0 z-50 transition-transform duration-200
           ${open ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 lg:static`}
       >
+        <div className="brand-gradient h-1.5 shrink-0" aria-hidden />
         <div className="px-6 pt-8 pb-6 flex items-start justify-between lg:block">
           <div>
             <Image src="/kw-logo.png" alt="KW Towing" width={1223} height={644} className="w-36 h-auto mb-2" priority />

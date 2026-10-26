@@ -22,7 +22,7 @@ export default function PeriodSelector({
           onClick={() => onChange(p.value)}
           className={`px-4 py-1.5 rounded-full text-sm transition-colors ${
             value === p.value
-              ? "bg-[var(--ink)] text-white"
+              ? "bg-[var(--accent)] text-white"
               : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
           }`}
         >

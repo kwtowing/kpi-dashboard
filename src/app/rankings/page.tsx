@@ -63,7 +63,7 @@ export default function RankingsPage() {
               key={t}
               onClick={() => setTab(t)}
               className={`px-4 py-1.5 rounded-full text-sm capitalize transition-colors ${
-                tab === t ? "bg-[var(--ink)] text-white" : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                tab === t ? "bg-[var(--accent)] text-white" : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
               }`}
             >
               {t}

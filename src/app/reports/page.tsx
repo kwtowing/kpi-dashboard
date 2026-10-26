@@ -223,7 +223,7 @@ export default function ReportsPage() {
             onClick={() => setCategory(c.id as CategoryChoice)}
             className={`px-4 py-1.5 rounded-full text-sm border transition-colors ${
               category === c.id
-                ? "bg-[var(--ink)] text-white border-[var(--ink)]"
+                ? "bg-[var(--accent)] text-white border-[var(--accent)]"
                 : "bg-[var(--surface)] text-[var(--ink-muted)] border-[var(--line)] hover:text-[var(--ink)]"
             }`}
           >
@@ -243,7 +243,7 @@ export default function ReportsPage() {
                 setAnchor(null);
               }}
               className={`px-3.5 py-1 rounded-full text-sm transition-colors ${
-                type === p.value ? "bg-[var(--ink)] text-white" : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                type === p.value ? "bg-[var(--accent)] text-white" : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
               }`}
             >
               {p.label}

@@ -127,7 +127,7 @@ export default function AddEntryPage() {
         <button
           type="submit"
           disabled={status === "saving"}
-          className="w-full py-2.5 rounded-full bg-[var(--ink)] text-white text-sm disabled:opacity-50"
+          className="w-full py-2.5 rounded-full bg-[var(--accent)] text-white text-sm disabled:opacity-50"
         >
           {status === "saving" ? "Saving…" : status === "done" ? "Saved ✓" : "Save entry"}
         </button>
