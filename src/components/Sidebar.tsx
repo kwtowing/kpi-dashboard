@@ -96,8 +96,8 @@ export default function Sidebar() {
       >
         <div className="brand-gradient h-1.5 shrink-0" aria-hidden />
         <div className="px-6 pt-8 pb-6 flex items-start justify-between lg:block">
-          <div>
-            <Image src="/kw-logo.png" alt="KW Towing" width={1223} height={644} className="w-36 h-auto mb-2" priority />
+          <div className="flex-1 text-center">
+            <Image src="/kw-logo.png" alt="KW Towing" width={1223} height={644} className="w-40 h-auto mb-2 mx-auto" priority />
             <div className="font-display italic text-sm leading-tight text-[var(--ink-muted)]">
               Management Information System
             </div>
