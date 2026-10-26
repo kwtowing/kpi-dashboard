@@ -4,8 +4,11 @@ import { useState } from "react";
 
 export type DateRange = { from: string | null; to: string | null };
 
+// Local calendar date. toISOString() converts to UTC first, which moves the date by a
+// day for anyone ahead of UTC and made "today"/week/month ranges miss a day.
 function iso(d: Date) {
-  return d.toISOString().slice(0, 10);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
 function startOfWeek(d: Date) {

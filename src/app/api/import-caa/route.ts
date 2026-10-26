@@ -3,25 +3,24 @@ import { query } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-interface CaaRow {
-  receive_date: string;
-  call_no: string;
-  re_dt?: string | null;
-  cl_dt?: string | null;
-  call_status?: string | null;
-  pta_wait?: number | null;
-  garage?: string | null;
-  truck?: string | null;
-  driver_id?: string | null;
-  trouble_cd?: string | null;
-  club_code?: string | null;
-  om_mileage?: number | null;
-  subtotal?: number | null;
-  tax?: number | null;
-  total_cost?: number | null;
-  towed_kms_paid?: number | null;
-  towed_kms?: number | null;
-}
+const EXTRA_COLUMNS: [string, string][] = [
+  ["sp_dt", "TIMESTAMPTZ"], ["as_dt", "TIMESTAMPTZ"], ["di_dt", "TIMESTAMPTZ"], ["er_dt", "TIMESTAMPTZ"],
+  ["ol_dt", "TIMESTAMPTZ"], ["tw_dt", "TIMESTAMPTZ"], ["hs_dt", "TIMESTAMPTZ"],
+  ["car_year", "TEXT"], ["make", "TEXT"], ["model", "TEXT"], ["facility_name", "TEXT"], ["priority", "TEXT"],
+  ["bl_address", "TEXT"], ["bl_city", "TEXT"], ["tow_address", "TEXT"], ["tow_city", "TEXT"],
+  ["member_type", "TEXT"], ["clear_reason", "TEXT"], ["tw_mileage", "NUMERIC(10, 2)"], ["raw", "JSONB"],
+];
+
+// Columns written for every call, in order. One list drives both the INSERT and the update.
+const FIELDS = [
+  "re_dt", "sp_dt", "as_dt", "di_dt", "er_dt", "ol_dt", "tw_dt", "cl_dt", "hs_dt",
+  "call_status", "pta_wait", "garage", "truck", "driver_id", "trouble_cd", "club_code",
+  "car_year", "make", "model", "facility_name", "priority", "bl_address", "bl_city",
+  "tow_address", "tow_city", "member_type", "clear_reason", "om_mileage", "tw_mileage",
+  "subtotal", "tax", "total_cost", "towed_kms_paid", "towed_kms", "raw",
+] as const;
+
+import type { CaaRow } from "@/lib/caaParser";
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,6 +29,11 @@ export async function POST(req: NextRequest) {
 
     if (!Array.isArray(rows) || rows.length === 0) {
       return NextResponse.json({ error: "No rows to import" }, { status: 400 });
+    }
+
+    // Make sure the extra capture columns exist (safe to run every time).
+    for (const [col, type] of EXTRA_COLUMNS) {
+      await query(`ALTER TABLE tow_calls ADD COLUMN IF NOT EXISTS ${col} ${type}`);
     }
 
     const sourceName = "CAA Garage Productivity";
@@ -59,50 +63,22 @@ export async function POST(req: NextRequest) {
       // Upsert: a call seen again (same call_no + receive_date) has its values
       // refreshed rather than skipped — CAA reports get amended, and a later
       // export with a corrected amount should actually update our numbers.
+      const cols = ["source_id", "call_no", "receive_date", ...FIELDS];
+      const values = [
+        sourceId,
+        r.call_no,
+        r.receive_date,
+        ...FIELDS.map((f) => (f === "raw" ? JSON.stringify(r.raw ?? {}) : (r as any)[f] ?? null)),
+      ];
+      const placeholders = cols.map((c, k) => (c === "raw" ? `$${k + 1}::jsonb` : `$${k + 1}`));
       const result = await query<{ inserted_new: boolean }>(
-        `INSERT INTO tow_calls
-           (source_id, call_no, receive_date, re_dt, cl_dt, call_status, pta_wait,
-            garage, truck, driver_id, trouble_cd, club_code, om_mileage,
-            subtotal, tax, total_cost, towed_kms_paid, towed_kms)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+        `INSERT INTO tow_calls (${cols.join(", ")})
+         VALUES (${placeholders.join(", ")})
          ON CONFLICT (call_no, receive_date) DO UPDATE SET
            source_id = EXCLUDED.source_id,
-           re_dt = EXCLUDED.re_dt,
-           cl_dt = EXCLUDED.cl_dt,
-           call_status = EXCLUDED.call_status,
-           pta_wait = EXCLUDED.pta_wait,
-           garage = EXCLUDED.garage,
-           truck = EXCLUDED.truck,
-           driver_id = EXCLUDED.driver_id,
-           trouble_cd = EXCLUDED.trouble_cd,
-           club_code = EXCLUDED.club_code,
-           om_mileage = EXCLUDED.om_mileage,
-           subtotal = EXCLUDED.subtotal,
-           tax = EXCLUDED.tax,
-           total_cost = EXCLUDED.total_cost,
-           towed_kms_paid = EXCLUDED.towed_kms_paid,
-           towed_kms = EXCLUDED.towed_kms
+           ${FIELDS.map((f) => `${f} = EXCLUDED.${f}`).join(",\n           ")}
          RETURNING (xmax = 0) AS inserted_new`,
-        [
-          sourceId,
-          r.call_no,
-          r.receive_date,
-          r.re_dt ?? null,
-          r.cl_dt ?? null,
-          r.call_status ?? null,
-          r.pta_wait ?? null,
-          r.garage ?? null,
-          r.truck ?? null,
-          r.driver_id ?? null,
-          r.trouble_cd ?? null,
-          r.club_code ?? null,
-          r.om_mileage ?? null,
-          r.subtotal ?? null,
-          r.tax ?? null,
-          r.total_cost ?? null,
-          r.towed_kms_paid ?? null,
-          r.towed_kms ?? null,
-        ]
+        values
       );
 
       if (result[0]?.inserted_new) {
@@ -125,7 +101,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, inserted, updated, errors });
+    // Reconcile: what the database now holds for the dates in this file, so the
+    // figures can be compared with the file's own totals.
+    const days = rows.map((r) => r.receive_date).sort();
+    const check = await query<{ calls: string; total: string; zero: string }>(
+      `SELECT COUNT(*) AS calls, COALESCE(SUM(total_cost), 0) AS total,
+              COUNT(*) FILTER (WHERE total_cost = 0) AS zero
+       FROM tow_calls WHERE receive_date >= $1 AND receive_date <= $2`,
+      [days[0], days[days.length - 1]]
+    );
+    const database = {
+      from: days[0],
+      to: days[days.length - 1],
+      calls: Number(check[0].calls),
+      total: Number(check[0].total),
+      zeroDollar: Number(check[0].zero),
+    };
+
+    return NextResponse.json({ ok: true, inserted, updated, errors, database });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

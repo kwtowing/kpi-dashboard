@@ -9,7 +9,7 @@ const CATEGORIES = {
 
 export default function AddEntryPage() {
   const [kind, setKind] = useState<"revenue" | "cost">("cost");
-  const [entryDate, setEntryDate] = useState(new Date().toISOString().slice(0, 10));
+  const [entryDate, setEntryDate] = useState(() => { const n = new Date(); const p = (x: number) => String(x).padStart(2, "0"); return `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}`; });
   const [category, setCategory] = useState(CATEGORIES.cost[0]);
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");

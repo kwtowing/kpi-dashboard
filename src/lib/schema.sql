@@ -124,3 +124,26 @@ CREATE INDEX IF NOT EXISTS idx_assignments_truck ON driver_truck_assignments (tr
 -- Safe to run repeatedly — a no-op once cleaned up, since nothing writes
 -- these rows anymore.
 DELETE FROM transactions WHERE category = 'CAA Towing';
+
+-- Full CAA report capture: every column of the Garage Productivity export is kept.
+-- (The import route also runs these, so the user never has to re-run setup.)
+ALTER TABLE tow_calls ADD COLUMN IF NOT EXISTS sp_dt TIMESTAMPTZ;
+ALTER TABLE tow_calls ADD COLUMN IF NOT EXISTS as_dt TIMESTAMPTZ;
+ALTER TABLE tow_calls ADD COLUMN IF NOT EXISTS di_dt TIMESTAMPTZ;
+ALTER TABLE tow_calls ADD COLUMN IF NOT EXISTS er_dt TIMESTAMPTZ;
+ALTER TABLE tow_calls ADD COLUMN IF NOT EXISTS ol_dt TIMESTAMPTZ;
+ALTER TABLE tow_calls ADD COLUMN IF NOT EXISTS tw_dt TIMESTAMPTZ;
+ALTER TABLE tow_calls ADD COLUMN IF NOT EXISTS hs_dt TIMESTAMPTZ;
+ALTER TABLE tow_calls ADD COLUMN IF NOT EXISTS car_year TEXT;
+ALTER TABLE tow_calls ADD COLUMN IF NOT EXISTS make TEXT;
+ALTER TABLE tow_calls ADD COLUMN IF NOT EXISTS model TEXT;
+ALTER TABLE tow_calls ADD COLUMN IF NOT EXISTS facility_name TEXT;
+ALTER TABLE tow_calls ADD COLUMN IF NOT EXISTS priority TEXT;
+ALTER TABLE tow_calls ADD COLUMN IF NOT EXISTS bl_address TEXT;
+ALTER TABLE tow_calls ADD COLUMN IF NOT EXISTS bl_city TEXT;
+ALTER TABLE tow_calls ADD COLUMN IF NOT EXISTS tow_address TEXT;
+ALTER TABLE tow_calls ADD COLUMN IF NOT EXISTS tow_city TEXT;
+ALTER TABLE tow_calls ADD COLUMN IF NOT EXISTS member_type TEXT;
+ALTER TABLE tow_calls ADD COLUMN IF NOT EXISTS clear_reason TEXT;
+ALTER TABLE tow_calls ADD COLUMN IF NOT EXISTS tw_mileage NUMERIC(10, 2);
+ALTER TABLE tow_calls ADD COLUMN IF NOT EXISTS raw JSONB;

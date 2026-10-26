@@ -3,74 +3,18 @@
 import { useState, useEffect, useCallback } from "react";
 import * as XLSX from "xlsx";
 
-// Fixed column layout of the CAA Garage Productivity report (0-indexed,
-// i.e. column A = 0, B = 1, ... matches the spreadsheet letters exactly).
-const COLS = {
-  receive_date: 0, // A
-  call_no: 1, // B
-  re_dt: 3, // D
-  cl_dt: 10, // K
-  call_status: 12, // M
-  pta_wait: 13, // N
-  garage: 20, // U
-  truck: 22, // W
-  driver_id: 23, // X
-  trouble_cd: 33, // AH
-  club_code: 40, // AO
-  om_mileage: 41, // AP
-  subtotal: 64, // BM
-  tax: 65, // BN
-  total_cost: 66, // BO
-  towed_kms_paid: 68, // BQ
-  towed_kms: 69, // BR
-};
+import { parseCaaGrid, type CaaRow, type ParseResult } from "@/lib/caaParser";
 
-const HEADER_ROW_INDEX = 2; // row 3 in Excel, 0-indexed
-const DATA_START_INDEX = 3; // row 4 in Excel, 0-indexed
-
-type ParsedRow = {
-  receive_date: string;
-  call_no: string;
-  re_dt: string | null;
-  cl_dt: string | null;
-  call_status: string | null;
-  pta_wait: number | null;
-  garage: string | null;
-  truck: string | null;
-  driver_id: string | null;
-  trouble_cd: string | null;
-  club_code: string | null;
-  om_mileage: number | null;
-  subtotal: number | null;
-  tax: number | null;
-  total_cost: number | null;
-  towed_kms_paid: number | null;
-  towed_kms: number | null;
-};
-
-function toDateStr(v: any): string | null {
-  if (v === undefined || v === null || v === "") return null;
-  if (v instanceof Date) return v.toISOString();
-  return null;
-}
-
-function toDayStr(v: any): string | null {
-  const d = toDateStr(v);
-  return d ? d.slice(0, 10) : null;
-}
-
-function toNum(v: any): number | null {
-  if (v === undefined || v === null || v === "") return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
+const money = (n: number) =>
+  "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function ImportCaaPage() {
   const [fileName, setFileName] = useState("");
-  const [rows, setRows] = useState<ParsedRow[]>([]);
+  const [rows, setRows] = useState<CaaRow[]>([]);
+  const [parsed, setParsed] = useState<ParseResult | null>(null);
   const [parseError, setParseError] = useState("");
   const [status, setStatus] = useState<"idle" | "importing" | "done" | "error">("idle");
-  const [result, setResult] = useState<{ inserted: number; updated: number; errors: string[] } | null>(null);
+  const [result, setResult] = useState<{ inserted: number; updated: number; errors: string[]; database?: { from: string; to: string; calls: number; total: number; zeroDollar: number } } | null>(null);
   const [error, setError] = useState("");
   const [history, setHistory] = useState<{ total_calls: number; earliest: string | null; latest: string | null; total_revenue: number } | null>(null);
 
@@ -95,53 +39,14 @@ export default function ImportCaaPage() {
     reader.onload = (e) => {
       try {
         const data = e.target?.result;
-        const workbook = XLSX.read(data, { type: "binary", cellDates: true });
+        const workbook = XLSX.read(data, { type: "binary" });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const grid: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true });
-
-        const header = grid[HEADER_ROW_INDEX];
-        if (!header || String(header[COLS.receive_date]).toLowerCase().indexOf("receive") === -1) {
-          setParseError(
-            "This doesn't look like a CAA Garage Productivity report — the expected header row wasn't found. Check you've uploaded the right file."
-          );
-          return;
-        }
-
-        const parsed: ParsedRow[] = [];
-        for (let i = DATA_START_INDEX; i < grid.length; i++) {
-          const r = grid[i];
-          if (!r || r[COLS.call_no] === undefined || r[COLS.call_no] === "") continue;
-          const day = toDayStr(r[COLS.receive_date]);
-          if (!day) continue;
-
-          parsed.push({
-            receive_date: day,
-            call_no: String(r[COLS.call_no]),
-            re_dt: toDateStr(r[COLS.re_dt]),
-            cl_dt: toDateStr(r[COLS.cl_dt]),
-            call_status: r[COLS.call_status] ? String(r[COLS.call_status]) : null,
-            pta_wait: toNum(r[COLS.pta_wait]),
-            garage: r[COLS.garage] ? String(r[COLS.garage]) : null,
-            truck: r[COLS.truck] ? String(r[COLS.truck]) : null,
-            driver_id: r[COLS.driver_id] ? String(r[COLS.driver_id]) : null,
-            trouble_cd: r[COLS.trouble_cd] ? String(r[COLS.trouble_cd]) : null,
-            club_code: r[COLS.club_code] ? String(r[COLS.club_code]) : null,
-            om_mileage: toNum(r[COLS.om_mileage]),
-            subtotal: toNum(r[COLS.subtotal]),
-            tax: toNum(r[COLS.tax]),
-            total_cost: toNum(r[COLS.total_cost]),
-            towed_kms_paid: toNum(r[COLS.towed_kms_paid]),
-            towed_kms: toNum(r[COLS.towed_kms]),
-          });
-        }
-
-        if (parsed.length === 0) {
-          setParseError("No data rows found in this file.");
-          return;
-        }
-        setRows(parsed);
+        const result = parseCaaGrid(grid);
+        setParsed(result);
+        setRows(result.rows);
       } catch (err: any) {
-        setParseError("Couldn't read this file: " + err.message);
+        setParseError(err.message);
       }
     };
     reader.readAsBinaryString(file);
@@ -166,7 +71,7 @@ export default function ImportCaaPage() {
     }
   }
 
-  const totalRevenue = rows.reduce((sum, r) => sum + (r.total_cost ?? 0), 0);
+  const sm = parsed?.summary;
 
   return (
     <div className="px-4 sm:px-8 py-6 sm:py-8 max-w-2xl">
@@ -212,10 +117,25 @@ export default function ImportCaaPage() {
         <div className="space-y-6">
           <div className="card p-5">
             <div className="text-sm font-medium mb-1">{fileName}</div>
-            <div className="text-xs text-[var(--ink-muted)] mb-4">
-              {rows.length} calls found · total revenue{" "}
-              <span className="font-mono-num">${totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-            </div>
+            {sm && (
+              <div className="text-xs text-[var(--ink-muted)] mb-4 space-y-1">
+                <div>
+                  <span className="font-mono-num">{sm.calls}</span> calls · {sm.earliest} to {sm.latest} ·{" "}
+                  {sm.columns} report columns read, all kept
+                </div>
+                <div>
+                  Subtotal <span className="font-mono-num">{money(sm.subtotal)}</span> + tax{" "}
+                  <span className="font-mono-num">{money(sm.tax)}</span> = total revenue{" "}
+                  <span className="font-mono-num">{money(sm.total)}</span>
+                </div>
+                <div>
+                  {sm.zeroDollar} call{sm.zeroDollar === 1 ? "" : "s"} at $0 (will be flagged for dispute review)
+                </div>
+                {parsed?.warnings.map((w) => (
+                  <div key={w} className="text-[var(--cost)]">{w}</div>
+                ))}
+              </div>
+            )}
             <div className="overflow-x-auto"><table className="w-full text-xs">
               <thead>
                 <tr className="text-left text-[var(--ink-muted)]">
@@ -233,7 +153,7 @@ export default function ImportCaaPage() {
                     <td className="py-2 font-mono-num">{r.call_no}</td>
                     <td className="py-2">{r.garage ?? "—"}</td>
                     <td className="py-2">{r.driver_id ?? "—"}</td>
-                    <td className="py-2 font-mono-num">{r.total_cost !== null ? `$${r.total_cost}` : "—"}</td>
+                    <td className="py-2 font-mono-num">{r.total_cost !== null ? money(r.total_cost) : "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -251,6 +171,7 @@ export default function ImportCaaPage() {
             <button
               onClick={() => {
                 setRows([]);
+                setParsed(null);
                 setFileName("");
                 setStatus("idle");
                 setResult(null);
@@ -266,6 +187,19 @@ export default function ImportCaaPage() {
               {result.inserted} new call{result.inserted === 1 ? "" : "s"} added
               {result.updated > 0 && <span className="text-[var(--ink-muted)]"> · {result.updated} existing call{result.updated === 1 ? "" : "s"} refreshed with the latest values</span>}.
               {result.errors.length > 0 && <div className="text-[var(--cost)] mt-1">{result.errors.length} rows had errors.</div>}
+              {result.database && sm && (
+                <div className="mt-2 text-xs text-[var(--ink-muted)]">
+                  Check, {result.database.from} to {result.database.to}: file {money(sm.total)} ({sm.calls} calls) · system{" "}
+                  <span className="font-mono-num">{money(result.database.total)}</span> ({result.database.calls} calls) ·{" "}
+                  {Math.abs(result.database.total - sm.total) < 0.01 && result.database.calls === sm.calls ? (
+                    <span className="text-[var(--revenue)]">matches</span>
+                  ) : (
+                    <span className="text-[var(--cost)]">
+                      differs. Another earlier file holds calls in these dates that are not in this one.
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           )}
           {status === "error" && <div className="text-sm text-[var(--cost)]">{error}</div>}
