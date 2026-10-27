@@ -19,7 +19,7 @@ function startOfWeek(d: Date) {
   return r;
 }
 
-function computePreset(preset: string): DateRange {
+export function computePreset(preset: string): DateRange {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -41,6 +41,16 @@ function computePreset(preset: string): DateRange {
       const end = new Date(start);
       end.setDate(end.getDate() + 6);
       return { from: iso(start), to: iso(end) };
+    }
+    case "last_4_weeks": {
+      const start = new Date(today);
+      start.setDate(start.getDate() - 27);
+      return { from: iso(start), to: iso(today) };
+    }
+    case "last_30_days": {
+      const start = new Date(today);
+      start.setDate(start.getDate() - 29);
+      return { from: iso(start), to: iso(today) };
     }
     case "this_month": {
       const start = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -71,6 +81,8 @@ const PRESETS = [
   { value: "yesterday", label: "Yesterday" },
   { value: "this_week", label: "This week" },
   { value: "last_week", label: "Last week" },
+  { value: "last_4_weeks", label: "Last 4 weeks" },
+  { value: "last_30_days", label: "Last 30 days" },
   { value: "this_month", label: "This month" },
   { value: "last_month", label: "Last month" },
   { value: "this_year", label: "This year" },
@@ -80,10 +92,12 @@ const PRESETS = [
 
 export default function DateRangeFilter({
   onChange,
+  initialPreset = "all",
 }: {
   onChange: (range: DateRange) => void;
+  initialPreset?: string;
 }) {
-  const [preset, setPreset] = useState("all");
+  const [preset, setPreset] = useState(initialPreset);
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
 
