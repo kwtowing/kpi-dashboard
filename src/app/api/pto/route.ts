@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPtoHistory, Interval } from "@/lib/connectors/samsaraPto";
-import { listVehicleDriverStretches } from "@/lib/connectors/samsara";
+import { listVehicleDriverStretches, listVehicleNames } from "@/lib/connectors/samsara";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -138,11 +138,23 @@ export async function GET(req: NextRequest) {
         boomSessionList: boom.map((i) => [i.start, i.end]),
       };
     });
+    // Trucks Samsara gives no PTO/boom data for (the API exposes nothing for them).
+    let noData: { vehicleId: string; name: string }[] = [];
+    try {
+      const all = await listVehicleNames();
+      const have = new Set(trucks.map((t) => t.vehicleId));
+      noData = [...all.entries()]
+        .filter(([id, name]) => !have.has(id) && name && !/^deactivated|^00$/i.test(name))
+        .map(([vehicleId, name]) => ({ vehicleId, name }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    } catch {}
+
     trucks.sort((a, b) => b.ptoHours + b.boomHours - (a.ptoHours + a.boomHours));
 
     return NextResponse.json({
       range: { from, to },
       trucks,
+      noData,
       drivers: [...byDriver.values()].map((d) => ({ driverId: d.driverId, name: d.name, ptoHours: d.ptoMs / 3_600_000, boomHours: d.boomMs / 3_600_000 })).sort((a, b) => b.ptoHours - a.ptoHours),
       days: [...byDay.entries()].sort().map(([day, ms]) => ({ day, ptoHours: ms / 3_600_000 })),
     });

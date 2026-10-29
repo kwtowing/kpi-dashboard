@@ -42,6 +42,7 @@ export default function PtoPage() {
   const [range, setRange] = useState<DateRange>(() => computePreset("this_week"));
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [noData, setNoData] = useState<{ vehicleId: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [truckFilter, setTruckFilter] = useState("all");
@@ -66,6 +67,7 @@ export default function PtoPage() {
           setDrivers([]);
         } else {
           setTrucks(j.trucks ?? []);
+          setNoData(j.noData ?? []);
           setDrivers(j.drivers ?? []);
         }
         setLoading(false);
@@ -268,6 +270,20 @@ export default function PtoPage() {
               </div>
             )}
           </div>
+
+          {noData.length > 0 && truckFilter === "all" && (
+            <div className="card px-5 py-4">
+              <div className="text-sm font-medium">Not available from Samsara ({noData.length} trucks)</div>
+              <div className="text-xs text-[var(--ink-muted)] mt-1">
+                Samsara&apos;s data feed gives no PTO or boom readings for these trucks, even where the Samsara screen shows PTO. They can&apos;t be reported until Samsara exposes them.
+              </div>
+              <div className="flex flex-wrap gap-2 mt-3">
+                {noData.map((t) => (
+                  <span key={t.vehicleId} className="text-xs rounded-full border border-[var(--line)] bg-[var(--bg)] px-2.5 py-1">{t.name}</span>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid md:grid-cols-2 gap-6">
             <div className="card overflow-hidden">
