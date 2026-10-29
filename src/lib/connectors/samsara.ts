@@ -47,7 +47,12 @@ export async function listVehiclesWithStats(): Promise<SamsaraVehicleStat[]> {
     throw new Error(`Samsara API error ${res.status}: ${await res.text()}`);
   }
   const json = await res.json();
-  return (json.data ?? []) as SamsaraVehicleStat[];
+  // Samsara names these fields in the singular (engineState / fuelPercent); the page uses the plural names.
+  return (json.data ?? []).map((v: any) => ({
+    ...v,
+    engineStates: v.engineStates ?? v.engineState,
+    fuelPercents: v.fuelPercents ?? v.fuelPercent,
+  })) as SamsaraVehicleStat[];
 }
 
 export interface SamsaraDriver {
