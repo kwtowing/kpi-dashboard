@@ -79,9 +79,9 @@ export async function GET(req: NextRequest) {
       const pto = v.pto.map(clip).filter((i) => i.end > i.start);
       const boom = v.boom.map(clip).filter((i) => i.end > i.start);
       // Per Toronto day: how many times switched on (counted on the day it started) and total time on.
-      type Day = { ptoCount: number; ptoMs: number; boomCount: number; boomMs: number };
+      type Day = { ptoCount: number; ptoMs: number; boomCount: number; boomMs: number; drivers: string[] };
       const days: Record<string, Day> = {};
-      const dayOf = (d: string) => (days[d] ??= { ptoCount: 0, ptoMs: 0, boomCount: 0, boomMs: 0 });
+      const dayOf = (d: string) => (days[d] ??= { ptoCount: 0, ptoMs: 0, boomCount: 0, boomMs: 0, drivers: [] });
       for (const iv of pto) {
         dayOf(dayKey(iv.start)).ptoCount++;
         for (const part of splitByDay(iv)) {
@@ -95,6 +95,15 @@ export async function GET(req: NextRequest) {
       }
       // Attribute to drivers by who was signed in.
       const st = stretches.get(v.vehicleId) ?? [];
+      for (const iv of [...pto, ...boom]) {
+        const d = dayOf(dayKey(iv.start));
+        for (const s of st) {
+          if (overlap(iv, { start: s.start, end: s.end }) > 0) {
+            const n = s.driverName ?? s.driverId;
+            if (!d.drivers.includes(n)) d.drivers.push(n);
+          }
+        }
+      }
       const add = (iv: Interval, key: "ptoMs" | "boomMs") => {
         let used = 0;
         for (const s of st) {

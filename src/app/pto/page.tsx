@@ -4,7 +4,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import DateRangeFilter, { DateRange, computePreset } from "@/components/DateRangeFilter";
 import ExportButton from "@/components/ExportButton";
 
-type DayStat = { ptoCount: number; ptoMs: number; boomCount: number; boomMs: number };
+type DayStat = { ptoCount: number; ptoMs: number; boomCount: number; boomMs: number; drivers: string[] };
 type Truck = {
   vehicleId: string;
   name: string;
@@ -143,6 +143,7 @@ export default function PtoPage() {
                 rows: rows.map((r) => ({
                   Date: r.day,
                   Truck: r.truck.name,
+                  Driver: r.s.drivers.join(", "),
                   "PTO times on": r.s.ptoCount,
                   "PTO total (min)": Math.round(r.s.ptoMs / 600) / 100,
                   "Boom times on": r.s.boomCount,
@@ -221,6 +222,7 @@ export default function PtoPage() {
                     <tr className="text-left text-[var(--ink-muted)] text-xs border-b border-[var(--line)]">
                       <th className="px-5 py-2 font-normal">Date</th>
                       <th className="px-5 py-2 font-normal">Truck</th>
+                      <th className="px-5 py-2 font-normal">Driver</th>
                       <th className="px-5 py-2 font-normal">PTO switched on</th>
                       <th className="px-5 py-2 font-normal">PTO total time</th>
                       <th className="px-5 py-2 font-normal">Boom switched on</th>
@@ -239,6 +241,7 @@ export default function PtoPage() {
                               {weekday(r.day)} {r.day}
                             </td>
                             <td className="px-5 py-2.5">{r.truck.name}</td>
+                            <td className="px-5 py-2.5">{r.s.drivers.length ? r.s.drivers.join(", ") : <span className="text-[var(--ink-muted)] text-xs">not signed in</span>}</td>
                             <td className="px-5 py-2.5 font-mono-num">{r.truck.tracksPto ? `${r.s.ptoCount}×` : <span className="text-[var(--ink-muted)]">n/a</span>}</td>
                             <td className="px-5 py-2.5 font-mono-num">{r.truck.tracksPto ? dur(r.s.ptoMs) : "—"}</td>
                             <td className="px-5 py-2.5 font-mono-num">{r.truck.tracksBoom ? `${r.s.boomCount}×` : <span className="text-[var(--ink-muted)]">n/a</span>}</td>
@@ -246,7 +249,7 @@ export default function PtoPage() {
                           </tr>
                           {isOpen && (
                             <tr className="bg-[var(--bg)]">
-                              <td colSpan={6} className="px-5 py-3">
+                              <td colSpan={7} className="px-5 py-3">
                                 <div className="flex flex-wrap gap-2">
                                   {sessionsFor(r).map((x, i) => (
                                     <span key={i} className="text-xs font-mono-num rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1">
