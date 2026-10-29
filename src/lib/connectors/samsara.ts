@@ -470,34 +470,41 @@ export async function listVehicleDriverStretches(
   const out = new Map<string, { driverId: string; driverName: string | null; start: number; end: number }[]>();
   if (vehicleIds.length === 0) return out;
   for (let i = 0; i < vehicleIds.length; i += 50) {
-    const params = new URLSearchParams({
-      startTime,
-      endTime,
-      filterBy: "vehicles",
-      vehicleIds: vehicleIds.slice(i, i + 50).join(","),
-    });
-    const res = await fetch(`${BASE}/fleet/driver-vehicle-assignments?${params.toString()}`, {
-      headers: authHeaders(),
-      cache: "no-store",
-    });
-    if (!res.ok) throw new Error(`Samsara API error ${res.status}: ${await res.text()}`);
-    const json = await res.json();
-    for (const item of json.data ?? []) {
-      // Samsara returns either one row per assignment or one row per vehicle holding a list.
-      const rows: any[] = Array.isArray(item.driverAssignments) ? item.driverAssignments.map((a: any) => ({ ...a, vehicle: a.vehicle ?? item.vehicle ?? { id: item.id } })) : [item];
-      for (const a of rows) {
-        const vid = String(a.vehicle?.id ?? a.vehicleId ?? "");
-        const did = String(a.driver?.id ?? a.driverId ?? "");
-        if (!vid || !did || !a.startTime) continue;
-        const list = out.get(vid) ?? [];
-        list.push({
-          driverId: did,
-          driverName: a.driver?.name ?? null,
-          start: new Date(a.startTime).getTime(),
-          end: a.endTime ? new Date(a.endTime).getTime() : Date.now(),
-        });
-        out.set(vid, list);
+    let after: string | undefined;
+    // Samsara splits assignments into many short pieces and pages the result, so every page is read.
+    for (let page = 0; page < 60; page++) {
+      const params = new URLSearchParams({
+        startTime,
+        endTime,
+        filterBy: "vehicles",
+        vehicleIds: vehicleIds.slice(i, i + 50).join(","),
+      });
+      if (after) params.set("after", after);
+      const res = await fetch(`${BASE}/fleet/driver-vehicle-assignments?${params.toString()}`, {
+        headers: authHeaders(),
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(`Samsara API error ${res.status}: ${await res.text()}`);
+      const json = await res.json();
+      for (const item of json.data ?? []) {
+        // Samsara returns either one row per assignment or one row per vehicle holding a list.
+        const rows: any[] = Array.isArray(item.driverAssignments) ? item.driverAssignments.map((a: any) => ({ ...a, vehicle: a.vehicle ?? item.vehicle ?? { id: item.id } })) : [item];
+        for (const a of rows) {
+          const vid = String(a.vehicle?.id ?? a.vehicleId ?? "");
+          const did = String(a.driver?.id ?? a.driverId ?? "");
+          if (!vid || !did || !a.startTime) continue;
+          const list = out.get(vid) ?? [];
+          list.push({
+            driverId: did,
+            driverName: a.driver?.name ?? null,
+            start: new Date(a.startTime).getTime(),
+            end: a.endTime ? new Date(a.endTime).getTime() : Date.now(),
+          });
+          out.set(vid, list);
+        }
       }
+      if (!json.pagination?.hasNextPage || !json.pagination?.endCursor) break;
+      after = json.pagination.endCursor;
     }
   }
   return out;

@@ -59,6 +59,19 @@ export async function GET(req: NextRequest) {
       stretches = await listVehicleDriverStretches(active.map((v) => v.vehicleId), new Date(startMs).toISOString(), new Date(Math.min(endMs, Date.now())).toISOString());
     } catch {}
 
+    // Samsara cuts one driver's shift into short pieces with small gaps (e.g. between trips).
+    // Join pieces of the same driver on the same truck when the gap is under 3 hours.
+    for (const [vid, list] of stretches) {
+      list.sort((a, b) => a.start - b.start);
+      const merged: typeof list = [];
+      for (const x of list) {
+        const last = merged[merged.length - 1];
+        if (last && last.driverId === x.driverId && x.start - last.end <= 3 * 3600_000) last.end = Math.max(last.end, x.end);
+        else merged.push({ ...x });
+      }
+      stretches.set(vid, merged);
+    }
+
     const byDriver = new Map<string, { driverId: string; name: string; ptoMs: number; boomMs: number; noCallMs: number }>();
     const byDay = new Map<string, number>();
     const trucks = active.map((v) => {
