@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { query } from "@/lib/db";
 import { getPtoHistory, Interval } from "@/lib/connectors/samsaraPto";
 import { listVehicleDriverStretches } from "@/lib/connectors/samsara";
 
@@ -54,36 +53,6 @@ export async function GET(req: NextRequest) {
   try {
     const vehicles = await getPtoHistory(startMs, endMs);
 
-    // Link Samsara vehicles to CAA truck codes (for matching PTO to calls).
-    const masters = await query<any>(`SELECT truck_number, samsara_vehicle_id, samsara_name FROM truck_master`);
-    const truckFor = (v: { vehicleId: string; name: string }): string | null => {
-      for (const m of masters) {
-        if (m.samsara_vehicle_id && String(m.samsara_vehicle_id) === v.vehicleId) return m.truck_number;
-        if (m.samsara_name && norm(m.samsara_name) === norm(v.name)) return m.truck_number;
-      }
-      for (const m of masters) if (norm(m.truck_number) === norm(v.name)) return m.truck_number;
-      return null;
-    };
-
-    // Call windows per truck (padded 15 min either side).
-    const calls = await query<any>(
-      `SELECT truck,
-              EXTRACT(EPOCH FROM COALESCE(sp_dt, as_dt, re_dt)) * 1000 AS s,
-              EXTRACT(EPOCH FROM COALESCE(cl_dt, hs_dt, tw_dt, ol_dt)) * 1000 AS e
-       FROM tow_calls
-       WHERE truck IS NOT NULL AND COALESCE(sp_dt, as_dt, re_dt) IS NOT NULL
-         AND COALESCE(sp_dt, as_dt, re_dt) < to_timestamp($2 / 1000.0)
-         AND COALESCE(cl_dt, hs_dt, tw_dt, ol_dt, COALESCE(sp_dt, as_dt, re_dt)) > to_timestamp($1 / 1000.0)`,
-      [startMs - 86_400_000, endMs]
-    );
-    const callWindows = new Map<string, Interval[]>();
-    for (const c of calls) {
-      const s = Number(c.s), e = c.e === null ? s : Number(c.e);
-      const list = callWindows.get(c.truck) ?? [];
-      list.push({ start: s - 15 * 60_000, end: Math.max(s, e) + 15 * 60_000 });
-      callWindows.set(c.truck, list);
-    }
-
     const active = vehicles.filter((v) => v.pto.length || v.boom.length || v.hasPto || v.hasBoom);
     let stretches = new Map<string, { driverId: string; driverName: string | null; start: number; end: number }[]>();
     try {
@@ -93,23 +62,23 @@ export async function GET(req: NextRequest) {
     const byDriver = new Map<string, { driverId: string; name: string; ptoMs: number; boomMs: number; noCallMs: number }>();
     const byDay = new Map<string, number>();
     const trucks = active.map((v) => {
-      const truckCode = truckFor(v);
-      const windows = truckCode ? callWindows.get(truckCode) ?? [] : null;
       const clip = (iv: Interval): Interval => ({ start: Math.max(iv.start, startMs), end: Math.min(iv.end, endMs) });
       const pto = v.pto.map(clip).filter((i) => i.end > i.start);
       const boom = v.boom.map(clip).filter((i) => i.end > i.start);
-      let noCallMs: number | null = null;
-      if (windows) {
-        noCallMs = 0;
-        for (const iv of pto) {
-          const covered = windows.reduce((t, w) => t + overlap(iv, w), 0);
-          noCallMs += Math.max(0, iv.end - iv.start - Math.min(covered, iv.end - iv.start));
+      // Per Toronto day: how many times switched on (counted on the day it started) and total time on.
+      type Day = { ptoCount: number; ptoMs: number; boomCount: number; boomMs: number };
+      const days: Record<string, Day> = {};
+      const dayOf = (d: string) => (days[d] ??= { ptoCount: 0, ptoMs: 0, boomCount: 0, boomMs: 0 });
+      for (const iv of pto) {
+        dayOf(dayKey(iv.start)).ptoCount++;
+        for (const part of splitByDay(iv)) {
+          dayOf(part.day).ptoMs += part.ms;
+          byDay.set(part.day, (byDay.get(part.day) ?? 0) + part.ms);
         }
       }
-      const days: Record<string, number> = {};
-      for (const iv of pto) for (const part of splitByDay(iv)) {
-        days[part.day] = (days[part.day] ?? 0) + part.ms;
-        byDay.set(part.day, (byDay.get(part.day) ?? 0) + part.ms);
+      for (const iv of boom) {
+        dayOf(dayKey(iv.start)).boomCount++;
+        for (const part of splitByDay(iv)) dayOf(part.day).boomMs += part.ms;
       }
       // Attribute to drivers by who was signed in.
       const st = stretches.get(v.vehicleId) ?? [];
@@ -135,16 +104,16 @@ export async function GET(req: NextRequest) {
       return {
         vehicleId: v.vehicleId,
         name: v.name,
-        truckCode,
         tracksPto: v.hasPto,
         tracksBoom: v.hasBoom,
         ptoHours: sum(pto) / 3_600_000,
         boomHours: sum(boom) / 3_600_000,
         sessions: pto.length,
+        boomSessions: boom.length,
         longestPtoMin: pto.length ? Math.max(...pto.map((i) => i.end - i.start)) / 60_000 : 0,
-        noCallHours: noCallMs === null ? null : noCallMs / 3_600_000,
-        callMatching: windows !== null,
         days,
+        ptoSessions: pto.map((i) => [i.start, i.end]),
+        boomSessionList: boom.map((i) => [i.start, i.end]),
       };
     });
     trucks.sort((a, b) => b.ptoHours + b.boomHours - (a.ptoHours + a.boomHours));
