@@ -28,7 +28,7 @@ function timeAgo(iso: string) {
 }
 
 export default function FleetPerformancePage() {
-  const [vehicles, setVehicles] = useState<SamsaraVehicle[]>([]);
+  const [allVehicles, setVehicles] = useState<SamsaraVehicle[]>([]);
   const [connected, setConnected] = useState(true);
   const [reason, setReason] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +50,15 @@ export default function FleetPerformancePage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Vehicles with no GPS signal for 30+ days (e.g. "00", KW 30) are left out of the list and the counts.
+  const STALE_MS = 30 * 86_400_000;
+  const isActive = (v: SamsaraVehicle) => {
+    const t = v.gps?.time ? new Date(v.gps.time).getTime() : 0;
+    return Date.now() - t <= STALE_MS;
+  };
+  const vehicles = allVehicles.filter(isActive);
+  const inactiveVehicles = allVehicles.filter((v) => !isActive(v));
 
   const operating = vehicles.filter((v) => v.engineStates?.value === "On").length;
   const idling = vehicles.filter((v) => v.engineStates?.value === "Idle").length;
@@ -120,6 +129,12 @@ export default function FleetPerformancePage() {
       </div>
 
       {connected && !loading && vehicles.length > 0 && (
+        <>
+          {inactiveVehicles.length > 0 && (
+            <div className="text-xs text-[var(--ink-muted)] mb-3">
+              {inactiveVehicles.length} inactive vehicle{inactiveVehicles.length === 1 ? "" : "s"} hidden (no GPS signal in 30+ days): {inactiveVehicles.map((v) => v.name).join(", ")}.
+            </div>
+          )}
         <div className="space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
             <StatCard label="Total vehicles" value={vehicles.length} />
@@ -201,6 +216,7 @@ export default function FleetPerformancePage() {
             </div>
           </div>
         </div>
+        </>
       )}
 
       {connected && !loading && vehicles.length === 0 && (
