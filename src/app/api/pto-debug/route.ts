@@ -1,37 +1,20 @@
 import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
-// Temporary diagnostic: how many vehicles the token sees, and how stats paging behaves.
+// Temporary diagnostic: why do some PTO trucks not appear in aux-input stats?
 export async function GET() {
   const token = process.env.SAMSARA_API_TOKEN;
   if (!token) return NextResponse.json({ error: "no token" });
   const H = { Authorization: `Bearer ${token}` };
-  const out: any = {};
-  // all vehicles, paged
-  const names: string[] = [];
-  let after = "";
-  for (let i = 0; i < 20; i++) {
-    const r = await fetch(`https://api.samsara.com/fleet/vehicles?limit=512${after ? `&after=${after}` : ""}`, { headers: H, cache: "no-store" });
-    const j = await r.json();
-    for (const v of j.data ?? []) names.push(`${v.name}|${v.id}`);
-    if (!j.pagination?.hasNextPage) break;
-    after = j.pagination.endCursor;
-  }
-  out.vehicleCount = names.length;
-  out.vehicles = names;
-  // stats, paged, aux inputs
-  const types = Array.from({ length: 13 }, (_, i) => `auxInput${i + 1}`).join(",");
-  const seen: string[] = [];
-  after = "";
-  const pages: any[] = [];
-  for (let i = 0; i < 20; i++) {
-    const r = await fetch(`https://api.samsara.com/fleet/vehicles/stats?types=${types}${after ? `&after=${after}` : ""}`, { headers: H, cache: "no-store" });
-    const j = await r.json();
-    pages.push({ n: (j.data ?? []).length, hasNext: j.pagination?.hasNextPage });
-    for (const v of j.data ?? []) seen.push(v.name);
-    if (!j.pagination?.hasNextPage) break;
-    after = j.pagination.endCursor;
-  }
-  out.statsPages = pages;
-  out.statsVehicles = seen;
-  return NextResponse.json(out);
+  const ids = "281474993726477,281474995394619,281474996462083"; // KW 32, KW 34, KW 17
+  const aux = Array.from({ length: 13 }, (_, i) => `auxInput${i + 1}`).join(",");
+  const end = new Date(), start = new Date(end.getTime() - 86400000);
+  const get = async (u: string) => {
+    const r = await fetch(u, { headers: H, cache: "no-store" });
+    return { status: r.status, body: (await r.text()).slice(0, 1800) };
+  };
+  return NextResponse.json({
+    badType: await get(`https://api.samsara.com/fleet/vehicles/stats?types=bogusType`),
+    currentForThree: await get(`https://api.samsara.com/fleet/vehicles/stats?types=${aux}&vehicleIds=${ids}`),
+    historyForThree: await get(`https://api.samsara.com/fleet/vehicles/stats/history?types=${aux}&vehicleIds=${ids}&startTime=${start.toISOString()}&endTime=${end.toISOString()}`),
+  });
 }
