@@ -22,6 +22,14 @@ type Truck = {
 type Driver = { driverId: string; name: string; ptoHours: number; boomHours: number };
 
 const TZ = "America/Toronto";
+
+// The trucks KW Towing wants to follow by default (matched on "KW 23", "WRT 10" etc. in the Samsara name).
+const MY_TRUCKS = new Set(["kw23", "kw10", "kw11", "kw13", "kw15", "kw19", "kw36", "kw24", "kw17", "kw28", "wrt10", "wrt7", "wrt11", "wrt6"]);
+const truckKey = (name: string) => {
+  const m = name.match(/^(kw|wrt)\s*0*(\d+)/i);
+  return m ? `${m[1].toLowerCase()}${m[2]}` : "";
+};
+const STORE_KEY = "kw-pto-trucks";
 const dayOf = (ms: number) =>
   new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
 const clock = (ms: number) =>
@@ -45,7 +53,8 @@ export default function PtoPage() {
   const [noData, setNoData] = useState<{ vehicleId: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [truckFilter, setTruckFilter] = useState("all");
+  const [picked, setPicked] = useState<string[] | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
 
   useEffect(() => {
@@ -83,8 +92,35 @@ export default function PtoPage() {
     };
   }, [range]);
 
-  const names = useMemo(() => [...trucks].sort((a, b) => a.name.localeCompare(b.name)), [trucks]);
-  const selected = trucks.filter((t) => truckFilter === "all" || t.vehicleId === truckFilter);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORE_KEY);
+      if (saved) setPicked(JSON.parse(saved));
+    } catch {}
+  }, []);
+  const choose = (ids: string[] | null) => {
+    setPicked(ids);
+    setOpen(null);
+    try {
+      if (ids) localStorage.setItem(STORE_KEY, JSON.stringify(ids));
+      else localStorage.removeItem(STORE_KEY);
+    } catch {}
+  };
+
+  const allTrucks = useMemo(
+    () =>
+      [...trucks.map((t) => ({ vehicleId: t.vehicleId, name: t.name })), ...noData].sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { numeric: true })
+      ),
+    [trucks, noData]
+  );
+  const effective = useMemo(
+    () => new Set(picked ?? allTrucks.filter((t) => MY_TRUCKS.has(truckKey(t.name))).map((t) => t.vehicleId)),
+    [picked, allTrucks]
+  );
+  const selected = trucks.filter((t) => effective.has(t.vehicleId));
+  const selectedNoData = noData.filter((t) => effective.has(t.vehicleId));
+  const allSelected = effective.size === allTrucks.length;
 
   const rows: Row[] = useMemo(() => {
     const out: Row[] = [];
@@ -120,21 +156,43 @@ export default function PtoPage() {
         </div>
         <div>
           <div className="text-xs text-[var(--ink-muted)] mb-1.5">Truck</div>
-          <select
-            value={truckFilter}
-            onChange={(e) => {
-              setTruckFilter(e.target.value);
-              setOpen(null);
-            }}
-            className="bg-[var(--surface)] border border-[var(--line)] rounded-full px-3 py-1.5 text-sm"
-          >
-            <option value="all">All trucks</option>
-            {names.map((t) => (
-              <option key={t.vehicleId} value={t.vehicleId}>
-                {t.name}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <button
+              onClick={() => setPickerOpen((v) => !v)}
+              className="bg-[var(--surface)] border border-[var(--line)] rounded-full px-3 py-1.5 text-sm"
+            >
+              {allSelected ? "All trucks" : `${effective.size} trucks selected`} ▾
+            </button>
+            {pickerOpen && (
+              <div className="absolute z-20 mt-2 w-72 card p-3 shadow-lg max-h-96 overflow-y-auto">
+                <div className="flex flex-wrap gap-2 mb-2 text-xs">
+                  <button className="underline" onClick={() => choose(null)}>My 14 trucks</button>
+                  <button className="underline" onClick={() => choose(allTrucks.map((t) => t.vehicleId))}>All</button>
+                  <button className="underline" onClick={() => choose([])}>None</button>
+                  <button className="underline ml-auto" onClick={() => setPickerOpen(false)}>Close</button>
+                </div>
+                {allTrucks.map((t) => {
+                  const noSignal = noData.some((n) => n.vehicleId === t.vehicleId);
+                  return (
+                    <label key={t.vehicleId} className="flex items-center gap-2 py-1 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={effective.has(t.vehicleId)}
+                        onChange={(e) => {
+                          const next = new Set(effective);
+                          if (e.target.checked) next.add(t.vehicleId);
+                          else next.delete(t.vehicleId);
+                          choose([...next]);
+                        }}
+                      />
+                      <span>{t.name}</span>
+                      {noSignal && <span className="text-[10px] text-[var(--ink-muted)] ml-auto">no data</span>}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
         <div className="ml-auto pb-0.5">
           <ExportButton
@@ -198,7 +256,7 @@ export default function PtoPage() {
               { l: "PTO switched on", v: `${totalCount}×`, sub: `${hrs(totalPto)} in total` },
               { l: "Boom switched on", v: `${totalBoomCount}×`, sub: `${hrs(totalBoom)} in total` },
               { l: "Avg PTO per switch-on", v: totalCount ? dur((totalPto * 3_600_000) / totalCount) : "—", sub: "length of one use" },
-              { l: truckFilter === "all" ? "Trucks reporting" : "Truck", v: truckFilter === "all" ? String(trucks.length) : selected[0]?.name ?? "—", sub: truckFilter === "all" ? `${trucks.filter((t) => t.sessions > 0).length} used PTO` : "" },
+              { l: "Trucks selected", v: String(effective.size), sub: `${selected.filter((t) => t.sessions > 0).length} used PTO${selectedNoData.length ? ` · ${selectedNoData.length} no data` : ""}` },
             ].map((k) => (
               <div key={k.l} className="card px-4 py-3">
                 <div className="text-xs text-[var(--ink-muted)]">{k.l}</div>
@@ -210,7 +268,7 @@ export default function PtoPage() {
 
           <div className="card overflow-hidden">
             <div className="px-5 py-4 border-b border-[var(--line)]">
-              <div className="font-display italic text-lg">Day by day{truckFilter === "all" ? "" : ` — ${selected[0]?.name ?? ""}`}</div>
+              <div className="font-display italic text-lg">Day by day{allSelected ? "" : ` — ${selected.length} selected truck${selected.length === 1 ? "" : "s"}`}</div>
               <div className="text-xs text-[var(--ink-muted)]">
                 Times switched on and total time on, per truck per day (Toronto time). Click a row to see each switch-on.
               </div>
@@ -271,14 +329,14 @@ export default function PtoPage() {
             )}
           </div>
 
-          {noData.length > 0 && truckFilter === "all" && (
+          {selectedNoData.length > 0 && (
             <div className="card px-5 py-4">
-              <div className="text-sm font-medium">Not available from Samsara ({noData.length} trucks)</div>
+              <div className="text-sm font-medium">No PTO data from Samsara for {selectedNoData.length} selected truck{selectedNoData.length === 1 ? "" : "s"}</div>
               <div className="text-xs text-[var(--ink-muted)] mt-1">
                 Samsara&apos;s data feed gives no PTO or boom readings for these trucks, even where the Samsara screen shows PTO. They can&apos;t be reported until Samsara exposes them.
               </div>
               <div className="flex flex-wrap gap-2 mt-3">
-                {noData.map((t) => (
+                {selectedNoData.map((t) => (
                   <span key={t.vehicleId} className="text-xs rounded-full border border-[var(--line)] bg-[var(--bg)] px-2.5 py-1">{t.name}</span>
                 ))}
               </div>
@@ -337,8 +395,8 @@ export default function PtoPage() {
                   )}
                 </tbody>
               </table>
-              {truckFilter !== "all" && (
-                <div className="px-5 py-3 text-xs text-[var(--ink-muted)] border-t border-[var(--line)]">Driver table covers all trucks, not just the selected one.</div>
+              {!allSelected && (
+                <div className="px-5 py-3 text-xs text-[var(--ink-muted)] border-t border-[var(--line)]">Driver table covers all trucks with data, not just the selected ones.</div>
               )}
             </div>
           </div>
