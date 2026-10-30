@@ -66,7 +66,7 @@ export default function PtoPage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch(`/api/pto?from=${range.from}&to=${range.to}&scope=${scope}`)
+    fetch(`/api/pto?from=${range.from}&to=${range.to}`)
       .then((r) => r.json())
       .then((j) => {
         if (cancelled) return;
@@ -90,7 +90,7 @@ export default function PtoPage() {
     return () => {
       cancelled = true;
     };
-  }, [range, scope]);
+  }, [range]);
 
   useEffect(() => {
     try {
@@ -153,24 +153,6 @@ export default function PtoPage() {
         <div>
           <div className="text-xs text-[var(--ink-muted)] mb-1.5">Date range (max 31 days)</div>
           <DateRangeFilter onChange={setRange} initialPreset="this_week" />
-        </div>
-        <div>
-          <div className="text-xs text-[var(--ink-muted)] mb-1.5">Fleet</div>
-          <div className="inline-flex bg-[var(--bg)] border border-[var(--line)] rounded-full p-1">
-            {([["focus", "My 16 trucks"], ["all", "All trucks"]] as const).map(([v, l]) => (
-              <button
-                key={v}
-                onClick={() => {
-                  setScope(v);
-                  setTruckFilter("all");
-                  setOpen(null);
-                }}
-                className={`px-4 py-1.5 rounded-full text-sm transition-colors ${scope === v ? "bg-[var(--accent)] text-white" : "text-[var(--ink-muted)] hover:text-[var(--ink)]"}`}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
         </div>
         <div>
           <div className="text-xs text-[var(--ink-muted)] mb-1.5">Truck</div>
