@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPtoHistory, Interval } from "@/lib/connectors/samsaraPto";
 import { listVehicleDriverStretches, listVehicleNames } from "@/lib/connectors/samsara";
+import { PTO_FOCUS_CODES, truckCode } from "@/lib/ptoTrucks";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -51,7 +52,9 @@ export async function GET(req: NextRequest) {
   if (endMs - startMs > 32 * 86_400_000) return NextResponse.json({ error: "Please choose 31 days or fewer." }, { status: 400 });
 
   try {
-    const vehicles = await getPtoHistory(startMs, endMs);
+    const focusOnly = searchParams.get("scope") === "focus";
+    const inScope = (name: string) => !focusOnly || PTO_FOCUS_CODES.includes(truckCode(name) ?? "");
+    const vehicles = (await getPtoHistory(startMs, endMs)).filter((v) => inScope(v.name));
 
     const active = vehicles.filter((v) => v.pto.length || v.boom.length || v.hasPto || v.hasBoom);
     let stretches = new Map<string, { driverId: string; driverName: string | null; start: number; end: number }[]>();
@@ -144,7 +147,7 @@ export async function GET(req: NextRequest) {
       const all = await listVehicleNames();
       const have = new Set(trucks.map((t) => t.vehicleId));
       noData = [...all.entries()]
-        .filter(([id, name]) => !have.has(id) && name && !/^deactivated|^00$/i.test(name))
+        .filter(([id, name]) => !have.has(id) && name && !/^deactivated|^00$/i.test(name) && inScope(name))
         .map(([vehicleId, name]) => ({ vehicleId, name }))
         .sort((a, b) => a.name.localeCompare(b.name));
     } catch {}
