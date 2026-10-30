@@ -24,7 +24,7 @@ type Driver = { driverId: string; name: string; ptoHours: number; boomHours: num
 const TZ = "America/Toronto";
 
 // The trucks KW Towing wants to follow by default (matched on "KW 23", "WRT 10" etc. in the Samsara name).
-const MY_TRUCKS = new Set(["kw23", "kw10", "kw11", "kw13", "kw15", "kw19", "kw36", "kw24", "kw17", "kw28", "wrt10", "wrt7", "wrt11", "wrt6"]);
+const MY_TRUCKS = new Set(["kw23", "kw10", "kw11", "kw13", "kw15", "kw19", "kw36", "kw24", "kw17", "kw28", "kw47", "kw46", "wrt10", "wrt7", "wrt11", "wrt6"]);
 const truckKey = (name: string) => {
   const m = name.match(/^(kw|wrt)\s*0*(\d+)/i);
   return m ? `${m[1].toLowerCase()}${m[2]}` : "";
@@ -166,7 +166,7 @@ export default function PtoPage() {
             {pickerOpen && (
               <div className="absolute z-20 mt-2 w-72 card p-3 shadow-lg max-h-96 overflow-y-auto">
                 <div className="flex flex-wrap gap-2 mb-2 text-xs">
-                  <button className="underline" onClick={() => choose(null)}>My 14 trucks</button>
+                  <button className="underline" onClick={() => choose(null)}>My 16 trucks</button>
                   <button className="underline" onClick={() => choose(allTrucks.map((t) => t.vehicleId))}>All</button>
                   <button className="underline" onClick={() => choose([])}>None</button>
                   <button className="underline ml-auto" onClick={() => setPickerOpen(false)}>Close</button>
